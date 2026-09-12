@@ -4,9 +4,10 @@ import traceback
 
 import keyboard
 
-from . import output
+from . import output, profiles, voice_commands, winapi
 from .audio import Recorder
 from .config import Config
+from .profiles import Profile
 from .textproc import apply_replacements
 from .transcriber import ModelNotInstalled, Transcriber
 
@@ -42,6 +43,8 @@ class Engine:
         self._cancel_hook = None
         self._watchdog: threading.Thread | None = None
         self._busy = threading.Lock()
+        self.target_window = 0
+        self.resolved = None
 
     def _set_state(self, state: str, message: str = "") -> None:
         self.state = state
@@ -121,6 +124,7 @@ class Engine:
         if not self.transcriber.is_loaded:
             self._set_state(LOADING, "Модель ещё готовится, подождите")
             return
+        self._resolve_context()
         try:
             self.recorder.device = self.cfg.input_device
             self.recorder.silence_stop = self.cfg.silence_stop
@@ -133,6 +137,17 @@ class Engine:
         self._install_cancel_hotkey()
         self._start_watchdog()
         self._set_state(RECORDING)
+
+    def _resolve_context(self) -> None:
+        """Запоминает окно, куда пойдёт текст, и настройки его профиля."""
+        self.target_window = winapi.foreground_window()
+        loaded = [Profile.from_dict(item) for item in self.cfg.profiles]
+        self.resolved = profiles.resolve(
+            self.cfg,
+            loaded,
+            winapi.process_name(self.target_window),
+            winapi.window_title(self.target_window),
+        )
 
     def _start_watchdog(self) -> None:
         """Следит за тишиной: сам останавливает запись, когда пользователь замолчал."""
@@ -169,29 +184,43 @@ class Engine:
 
     def _transcribe_worker(self, audio) -> None:
         with self._busy:
+            settings = self.resolved or profiles.resolve(self.cfg, [], "", "")
             try:
-                text = self.transcriber.transcribe(audio)
+                text = self.transcriber.transcribe(audio, language=settings.language)
             except Exception:
                 traceback.print_exc()
                 self._set_state(ERROR, "Ошибка распознавания")
                 return
 
             text = apply_replacements(text, self.cfg.replacements)
+            if settings.voice_commands:
+                text = voice_commands.apply_commands(text)
             if not text:
                 self._set_state(ERROR, "Ничего не распознано")
                 return
-
-            if self.cfg.auto_paste:
-                output.deliver(text, self.cfg.paste_method)
-            else:
-                output.copy_text(text)
 
             self.cfg.history.insert(0, text)
             del self.cfg.history[50:]
             self.cfg.save()
 
+            # с предпросмотром текст отдаёт интерфейс — после подтверждения
+            if not self.cfg.preview_before_paste:
+                self.deliver(text)
+
             self.on_result(text)
             self._set_state(IDLE)
+
+    def deliver(self, text: str, restore_focus: bool = False) -> None:
+        """Отправляет готовый текст в активное окно или в буфер обмена."""
+        if not text:
+            return
+        settings = self.resolved or profiles.resolve(self.cfg, [], "", "")
+        if restore_focus:
+            winapi.focus_window(self.target_window)
+        if self.cfg.auto_paste:
+            output.deliver(text, settings.paste_method)
+        else:
+            output.copy_text(text)
 
     # --- модель ---
 

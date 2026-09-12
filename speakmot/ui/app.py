@@ -11,6 +11,7 @@ from ..engine import Engine
 from . import theme
 from .main_window import MainWindow, center_on_screen
 from .overlay import RecordingOverlay
+from .preview import PreviewWindow
 
 
 class Bridge(QObject):
@@ -26,7 +27,7 @@ def build_icon(recording: bool = False) -> QIcon:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(theme.DANGER if recording else theme.ACCENT))
+    painter.setBrush(QColor(theme.color("danger") if recording else theme.color("accent")))
     painter.drawRoundedRect(QRectF(4, 4, 56, 56), 16, 16)
     painter.setBrush(QColor("#ffffff"))
     painter.drawRoundedRect(QRectF(25, 15, 14, 22), 7, 7)
@@ -41,9 +42,10 @@ class SpeakMotApp:
         self.qt = QApplication(sys.argv)
         self.qt.setApplicationName("SpeakMot")
         self.qt.setQuitOnLastWindowClosed(False)
-        self.qt.setStyleSheet(theme.QSS)
 
         self.cfg = Config.load()
+        theme.apply(self.cfg.theme, self.cfg.accent)
+        self.qt.setStyleSheet(theme.qss())
         self.bridge = Bridge()
         self.engine = Engine(
             self.cfg,
@@ -53,10 +55,13 @@ class SpeakMotApp:
 
         self.window = MainWindow(self)
         self.overlay = RecordingOverlay()
+        self.preview = PreviewWindow()
+        self.preview.accepted.connect(self._on_preview_accepted)
+        self.preview.rejected.connect(lambda: self.overlay.hide())
         center_on_screen(self.window)
 
         self.bridge.state_changed.connect(self._on_state)
-        self.bridge.result_ready.connect(self.window.show_result)
+        self.bridge.result_ready.connect(self._on_result)
 
         self._build_tray()
 
@@ -126,6 +131,23 @@ class SpeakMotApp:
             QTimer.singleShot(
                 3000, lambda: self.window.apply_state(engine_states.IDLE, "")
             )
+
+    def _on_result(self, text: str) -> None:
+        self.window.show_result(text)
+        if self.cfg.preview_before_paste:
+            self.overlay.hide()
+            self.preview.show_text(text)
+
+    def _on_preview_accepted(self, text: str) -> None:
+        self.overlay.hide()
+        self.engine.deliver(text, restore_focus=True)
+
+    def apply_appearance(self, theme_name: str, accent: str) -> None:
+        """Перекрашивает интерфейс на лету."""
+        theme.apply(theme_name, accent)
+        self.qt.setStyleSheet(theme.qss())
+        self.window.mic_button.refresh_theme()
+        self.tray.setIcon(build_icon(self.engine.state == engine_states.RECORDING))
 
     def _push_overlay_level(self) -> None:
         if self.engine.recorder.is_recording:

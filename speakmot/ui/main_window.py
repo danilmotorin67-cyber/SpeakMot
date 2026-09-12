@@ -23,12 +23,15 @@ from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
 from ..textproc import format_replacements, parse_replacements
+from . import theme
 from .models_page import ModelsPage
+from .profiles_page import ProfilesPage
 from .widgets import Card, MicButton, ToggleSwitch, Waveform
 
 LANGUAGES = {"Русский": "ru", "English": "en", "Автоопределение": "auto"}
 MODES = {"Переключением": "toggle", "Удержанием": "hold"}
 PASTE_METHODS = {"Вставкой (Ctrl+V)": "clipboard", "Вводом символов": "typing"}
+THEMES = {"Тёмная": "dark", "Светлая": "light"}
 SILENCE_OPTIONS = {
     "Выключен": 0.0,
     "Через 1 секунду": 1.0,
@@ -121,6 +124,8 @@ class MainWindow(QWidget):
         self.pages.addWidget(self._build_history_page())
         self.models_page = ModelsPage(self.controller)
         self.pages.addWidget(self.models_page)
+        self.profiles_page = ProfilesPage(self.controller)
+        self.pages.addWidget(self.profiles_page)
         self.pages.addWidget(self._build_settings_page())
         body.addWidget(self.pages, 1)
 
@@ -151,7 +156,8 @@ class MainWindow(QWidget):
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
-        for index, label in enumerate(("  Запись", "  История", "  Модели", "  Настройки")):
+        nav_items = ("  Запись", "  История", "  Модели", "  Профили", "  Настройки")
+        for index, label in enumerate(nav_items):
             button = QPushButton(label)
             button.setObjectName("navBtn")
             button.setCheckable(True)
@@ -379,6 +385,24 @@ class MainWindow(QWidget):
             )
         )
 
+        self.commands_switch = ToggleSwitch(self.cfg.voice_commands)
+        behavior_card.body().addLayout(
+            self._setting_row(
+                "Голосовые команды",
+                "«точка», «запятая», «новый абзац» превращаются в знаки",
+                self.commands_switch,
+            )
+        )
+
+        self.preview_switch = ToggleSwitch(self.cfg.preview_before_paste)
+        behavior_card.body().addLayout(
+            self._setting_row(
+                "Показывать перед вставкой",
+                "Окно с текстом, который можно поправить или отклонить",
+                self.preview_switch,
+            )
+        )
+
         self.autostart_switch = ToggleSwitch(self.cfg.autostart)
         behavior_card.body().addLayout(
             self._setting_row(
@@ -388,6 +412,25 @@ class MainWindow(QWidget):
             )
         )
         layout.addWidget(behavior_card)
+
+        # внешний вид
+        appearance_card = Card("Внешний вид")
+        self.theme_combo = QComboBox()
+        for label, value in THEMES.items():
+            self.theme_combo.addItem(label, value)
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(self.cfg.theme)))
+        self.theme_combo.currentIndexChanged.connect(self._preview_appearance)
+        appearance_card.body().addLayout(self._setting_row("Тема", "", self.theme_combo))
+
+        self.accent_combo = QComboBox()
+        for label, value in theme.ACCENTS.items():
+            self.accent_combo.addItem(label, value)
+        self.accent_combo.setCurrentIndex(max(0, self.accent_combo.findData(self.cfg.accent)))
+        self.accent_combo.currentIndexChanged.connect(self._preview_appearance)
+        appearance_card.body().addLayout(
+            self._setting_row("Акцентный цвет", "", self.accent_combo)
+        )
+        layout.addWidget(appearance_card)
 
         # словарь замен
         replacements_card = Card("Словарь замен")
@@ -438,6 +481,12 @@ class MainWindow(QWidget):
                 widget.setMaximumWidth(210)
             row.addWidget(widget, 0)
         return row
+
+    def _preview_appearance(self) -> None:
+        """Показывает тему сразу, не дожидаясь кнопки «Сохранить»."""
+        self.controller.apply_appearance(
+            self.theme_combo.currentData(), self.accent_combo.currentData()
+        )
 
     def _go_to_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
@@ -538,6 +587,11 @@ class MainWindow(QWidget):
         cfg.sound_feedback = self.sound_switch.isChecked()
         cfg.silence_stop = self.silence_combo.currentData()
         cfg.replacements = parse_replacements(self.replacements_edit.toPlainText())
+
+        cfg.voice_commands = self.commands_switch.isChecked()
+        cfg.preview_before_paste = self.preview_switch.isChecked()
+        cfg.theme = self.theme_combo.currentData()
+        cfg.accent = self.accent_combo.currentData()
 
         cfg.autostart = self.autostart_switch.isChecked()
         try:

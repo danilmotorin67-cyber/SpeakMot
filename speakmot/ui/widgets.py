@@ -88,14 +88,14 @@ class ToggleSwitch(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        track_off = QColor(theme.SURFACE_2)
-        track_on = QColor(theme.ACCENT)
+        track_off = QColor(theme.color("surface2"))
+        track_on = QColor(theme.color("accent"))
         color = QColor(
             int(track_off.red() + (track_on.red() - track_off.red()) * self._offset),
             int(track_off.green() + (track_on.green() - track_off.green()) * self._offset),
             int(track_off.blue() + (track_on.blue() - track_off.blue()) * self._offset),
         )
-        painter.setPen(QPen(QColor(theme.BORDER), 1))
+        painter.setPen(QPen(QColor(theme.color("border")), 1))
         painter.setBrush(color)
         painter.drawRoundedRect(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1), 13, 13)
 
@@ -143,7 +143,7 @@ class Waveform(QWidget):
         gap = 3
         width = max(2.0, (self.width() - gap * (count - 1)) / count)
         middle = self.height() / 2
-        accent = QColor(theme.ACCENT)
+        accent = QColor(theme.color("accent"))
 
         for index, level in enumerate(self._levels):
             if self._active:
@@ -177,11 +177,17 @@ class MicButton(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(38)
-        shadow.setColor(QColor(91, 140, 255, 90))
-        shadow.setOffset(0, 6)
-        self.setGraphicsEffect(shadow)
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(38)
+        self._shadow.setOffset(0, 6)
+        self.refresh_theme()
+        self.setGraphicsEffect(self._shadow)
+
+    def refresh_theme(self) -> None:
+        glow = QColor(theme.color("accent"))
+        glow.setAlpha(90)
+        self._shadow.setColor(glow)
+        self.update()
 
     def set_recording(self, recording: bool) -> None:
         self._recording = recording
@@ -219,13 +225,13 @@ class MicButton(QWidget):
 
         if self._recording:
             ring = radius + 6 + self._pulse * 16
-            color = QColor(theme.DANGER)
+            color = QColor(theme.color("danger"))
             color.setAlphaF(max(0.0, 0.35 * (1.0 - self._pulse)))
             painter.setPen(Qt.NoPen)
             painter.setBrush(color)
             painter.drawEllipse(center, ring, ring)
 
-        base = QColor(theme.DANGER if self._recording else theme.ACCENT)
+        base = QColor(theme.color("danger") if self._recording else theme.color("accent"))
         if self._hover:
             base = base.lighter(112)
         painter.setPen(Qt.NoPen)

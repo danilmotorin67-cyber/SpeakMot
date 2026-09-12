@@ -21,6 +21,11 @@ class Config:
     paste_method: str = "clipboard"  # "clipboard" | "typing"
     sound_feedback: bool = True
     autostart: bool = False
+    theme: str = "dark"  # "dark" | "light"
+    accent: str = "#5b8cff"
+    voice_commands: bool = True
+    preview_before_paste: bool = False
+    profiles: list[dict] = field(default_factory=list)
     silence_stop: float = 0.0  # секунды тишины до автостопа, 0 — выключено
     replacements: dict[str, str] = field(default_factory=dict)
     history: list[str] = field(default_factory=list)

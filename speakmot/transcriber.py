@@ -85,11 +85,12 @@ class Transcriber:
         with self._lock:
             self._model = None
 
-    def transcribe(self, audio: np.ndarray) -> str:
+    def transcribe(self, audio: np.ndarray, language: str | None = None) -> str:
         if audio.size == 0:
             return ""
         self.load()
-        language = None if self.cfg.language == "auto" else self.cfg.language
+        language = language or self.cfg.language
+        language = None if language == "auto" else language
         segments, _ = self._model.transcribe(
             audio,
             language=language,
