@@ -1,4 +1,6 @@
-from speakmot.app import App
+import sys
+
+from speakmot.ui.app import SpeakMotApp
 
 if __name__ == "__main__":
-    App().run()
+    sys.exit(SpeakMotApp().run())
