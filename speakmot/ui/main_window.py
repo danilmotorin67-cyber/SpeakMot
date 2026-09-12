@@ -23,16 +23,9 @@ from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
 from ..textproc import format_replacements, parse_replacements
+from .models_page import ModelsPage
 from .widgets import Card, MicButton, ToggleSwitch, Waveform
 
-MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3"]
-MODEL_HINTS = {
-    "tiny": "75 МБ · мгновенно, качество низкое",
-    "base": "145 МБ · быстро, качество среднее",
-    "small": "490 МБ · баланс скорости и качества",
-    "medium": "1.5 ГБ · медленнее, качество высокое",
-    "large-v3": "3 ГБ · лучшее качество, нужна видеокарта",
-}
 LANGUAGES = {"Русский": "ru", "English": "en", "Автоопределение": "auto"}
 MODES = {"Переключением": "toggle", "Удержанием": "hold"}
 PASTE_METHODS = {"Вставкой (Ctrl+V)": "clipboard", "Вводом символов": "typing"}
@@ -126,6 +119,8 @@ class MainWindow(QWidget):
         self.pages.setObjectName("page")
         self.pages.addWidget(self._build_home_page())
         self.pages.addWidget(self._build_history_page())
+        self.models_page = ModelsPage(self.controller)
+        self.pages.addWidget(self.models_page)
         self.pages.addWidget(self._build_settings_page())
         body.addWidget(self.pages, 1)
 
@@ -156,7 +151,7 @@ class MainWindow(QWidget):
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
-        for index, label in enumerate(("  Запись", "  История", "  Настройки")):
+        for index, label in enumerate(("  Запись", "  История", "  Модели", "  Настройки")):
             button = QPushButton(label)
             button.setObjectName("navBtn")
             button.setCheckable(True)
@@ -309,16 +304,14 @@ class MainWindow(QWidget):
 
         # распознавание
         model_card = Card("Распознавание")
-        self.model_combo = QComboBox()
-        self.model_combo.addItems(MODEL_SIZES)
-        self.model_combo.setCurrentText(self.cfg.model_size)
-        self.model_hint = QLabel(MODEL_HINTS[self.cfg.model_size])
-        self.model_hint.setObjectName("settingDesc")
-        self.model_combo.currentTextChanged.connect(
-            lambda value: self.model_hint.setText(MODEL_HINTS.get(value, ""))
-        )
+        self.model_value = QLabel(self.cfg.model_size)
+        self.model_value.setObjectName("settingDesc")
+        open_models = QPushButton("Управление моделями")
+        open_models.setObjectName("ghost")
+        open_models.setCursor(Qt.PointingHandCursor)
+        open_models.clicked.connect(lambda: self._go_to_page(2))
         model_card.body().addLayout(
-            self._setting_row("Модель Whisper", self.model_hint, self.model_combo)
+            self._setting_row("Модель Whisper", self.model_value, open_models)
         )
 
         self.lang_combo = QComboBox()
@@ -446,6 +439,14 @@ class MainWindow(QWidget):
             row.addWidget(widget, 0)
         return row
 
+    def _go_to_page(self, index: int) -> None:
+        self.pages.setCurrentIndex(index)
+        self.nav_group.button(index).setChecked(True)
+
+    def show_model(self, size: str) -> None:
+        self.model_badge.setText(size)
+        self.model_value.setText(size)
+
     # --- реакция на состояние ---
 
     def _pretty_hotkey(self, hotkey: str) -> str:
@@ -544,13 +545,10 @@ class MainWindow(QWidget):
         except OSError as exc:
             self.status_label.setText(f"Не удалось изменить автозапуск: {exc}")
 
-        model_changed = cfg.model_size != self.model_combo.currentText()
-        cfg.model_size = self.model_combo.currentText()
         cfg.save()
 
         self.hotkey_badge.setText(self._pretty_hotkey(cfg.hotkey))
-        self.model_badge.setText(cfg.model_size)
-        self.controller.reload(model_changed)
+        self.controller.reload(model_changed=False)
 
         self.save_button.setText("Сохранено ✓")
         QTimer.singleShot(1500, lambda: self.save_button.setText("Сохранить"))

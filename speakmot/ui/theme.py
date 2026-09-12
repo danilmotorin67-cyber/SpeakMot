@@ -201,6 +201,21 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
     color: {TEXT_DIM};
 }}
 
+QProgressBar {{
+    background: {SURFACE_2};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    height: 16px;
+    text-align: center;
+    color: {TEXT};
+    font-size: 11px;
+    font-weight: 600;
+}}
+QProgressBar::chunk {{
+    background: {ACCENT};
+    border-radius: 7px;
+}}
+
 #settingLabel {{
     font-size: 14px;
     font-weight: 500;

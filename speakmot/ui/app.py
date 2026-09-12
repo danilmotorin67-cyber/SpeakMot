@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import autostart
+from .. import autostart, models
 from .. import engine as engine_states
 from ..config import Config
 from ..engine import Engine
@@ -66,7 +66,8 @@ class SpeakMotApp:
 
         self._sync_autostart()
         self.engine.install_hotkey()
-        self.engine.preload_model()
+        if models.is_installed(self.cfg.model_size):
+            self.engine.preload_model()
 
     def _sync_autostart(self) -> None:
         """Приводит запись в реестре в соответствие с настройкой.
@@ -140,6 +141,11 @@ class SpeakMotApp:
         self.window.raise_()
         self.window.activateWindow()
 
+    def model_selected(self, size: str) -> None:
+        self.window.show_model(size)
+        self.engine.transcriber.unload()
+        self.engine.preload_model()
+
     def reload(self, model_changed: bool) -> None:
         self.engine.install_hotkey()
         if model_changed:
@@ -153,4 +159,10 @@ class SpeakMotApp:
 
     def run(self) -> int:
         self.window.show()
+        if not models.is_installed(self.cfg.model_size):
+            # первый запуск: сразу показываем, что модель надо установить
+            self.window._go_to_page(2)
+            self.window.models_page.report(
+                "Модель ещё не установлена. Выберите её и нажмите «Установить»."
+            )
         return self.qt.exec()

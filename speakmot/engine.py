@@ -8,7 +8,7 @@ from . import output
 from .audio import Recorder
 from .config import Config
 from .textproc import apply_replacements
-from .transcriber import Transcriber
+from .transcriber import ModelNotInstalled, Transcriber
 
 IDLE = "idle"
 RECORDING = "recording"
@@ -119,7 +119,7 @@ class Engine:
         if self.recorder.is_recording or self.state == TRANSCRIBING:
             return
         if not self.transcriber.is_loaded:
-            self._set_state(LOADING, "Модель ещё загружается, подождите")
+            self._set_state(LOADING, "Модель ещё готовится, подождите")
             return
         try:
             self.recorder.device = self.cfg.input_device
@@ -202,6 +202,9 @@ class Engine:
         self._set_state(LOADING, f"Подготовка модели {self.cfg.model_size}…")
         try:
             self.transcriber.load(progress=lambda message: self._set_state(LOADING, message))
+        except ModelNotInstalled:
+            self._set_state(ERROR, f"Модель {self.cfg.model_size} не установлена")
+            return
         except Exception as exc:
             self._set_state(ERROR, f"Модель не загрузилась: {exc}")
             return

@@ -1,28 +1,17 @@
 import threading
-import time
 
 import numpy as np
 
+from . import models
 from .config import MODELS_DIR, Config
 
-# Приблизительный размер моделей на диске — для расчёта прогресса скачивания.
-MODEL_BYTES = {
-    "tiny": 75_000_000,
-    "base": 145_000_000,
-    "small": 484_000_000,
-    "medium": 1_530_000_000,
-    "large-v3": 3_090_000_000,
-}
 
-
-def _downloaded_bytes() -> int:
-    if not MODELS_DIR.exists():
-        return 0
-    return sum(f.stat().st_size for f in MODELS_DIR.rglob("*") if f.is_file())
+class ModelNotInstalled(Exception):
+    pass
 
 
 class Transcriber:
-    """Обёртка над faster-whisper. Модель грузится лениво, при первом использовании."""
+    """Обёртка над faster-whisper. Модель грузится с диска, ничего не скачивая."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -48,37 +37,19 @@ class Transcriber:
             compute_type = "float16" if device == "cuda" else "int8"
         return device, compute_type
 
-    def _watch_download(self, progress, stop_event: threading.Event) -> None:
-        """Пока идёт скачивание, оценивает прогресс по размеру папки с моделями."""
-        total = MODEL_BYTES.get(self.cfg.model_size, 0)
-        start = _downloaded_bytes()
-        while not stop_event.wait(0.7):
-            done = _downloaded_bytes() - start
-            if total and done > 0:
-                percent = min(99, int(done * 100 / total))
-                progress(f"Загрузка модели {self.cfg.model_size} — {percent}%")
-
     def load(self, progress=None) -> None:
         progress = progress or (lambda _message: None)
         with self._lock:
             if self._model is not None:
                 return
+            if not models.is_installed(self.cfg.model_size):
+                raise ModelNotInstalled(self.cfg.model_size)
 
             from faster_whisper import WhisperModel
 
-            MODELS_DIR.mkdir(parents=True, exist_ok=True)
             device, compute_type = self._resolve_device()
-
-            progress(f"Подготовка модели {self.cfg.model_size}…")
-            stop_event = threading.Event()
-            watcher = threading.Thread(
-                target=self._watch_download, args=(progress, stop_event), daemon=True
-            )
-            watcher.start()
-            try:
-                self._model = self._build(WhisperModel, device, compute_type, progress)
-            finally:
-                stop_event.set()
+            progress(f"Загрузка модели {self.cfg.model_size} в память…")
+            self._model = self._build(WhisperModel, device, compute_type, progress)
 
     def _build(self, WhisperModel, device: str, compute_type: str, progress):
         """Создаёт модель, откатываясь на CPU, если видеокарта не готова.
@@ -92,6 +63,7 @@ class Transcriber:
                 device=device,
                 compute_type=compute_type,
                 download_root=str(MODELS_DIR),
+                local_files_only=True,
             )
             self.device_in_use = device
             return model
@@ -99,12 +71,12 @@ class Transcriber:
             if device != "cuda":
                 raise
             progress("Видеокарта недоступна, перехожу на процессор…")
-            time.sleep(0.2)
             model = WhisperModel(
                 self.cfg.model_size,
                 device="cpu",
                 compute_type="int8",
                 download_root=str(MODELS_DIR),
+                local_files_only=True,
             )
             self.device_in_use = "cpu"
             return model
