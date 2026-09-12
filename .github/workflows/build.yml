@@ -46,6 +46,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller==6.11.1
+          pip install --upgrade pyinstaller-hooks-contrib
 
       - name: Build
         run: >
@@ -54,7 +55,21 @@ jobs:
           --collect-all ctranslate2
           --collect-all tokenizers
           --collect-all av
+          --collect-submodules av
+          --hidden-import av._core
+          --collect-all huggingface_hub
           main.py
+
+      - name: Check bundled imports
+        run: |
+          $report = "$PWD\selftest.txt"
+          $process = Start-Process -FilePath dist/SpeakMot/SpeakMot.exe `
+            -ArgumentList "--selftest", $report -PassThru -Wait
+          if (Test-Path $report) { Get-Content $report }
+          if ($process.ExitCode -ne 0) {
+            Write-Error "Собранное приложение не смогло импортировать зависимости"
+            exit 1
+          }
 
       - name: Smoke test
         run: |

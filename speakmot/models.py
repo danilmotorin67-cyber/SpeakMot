@@ -82,9 +82,15 @@ def download(size: str, on_progress) -> None:
 
     def worker():
         try:
-            from faster_whisper.utils import download_model
+            from huggingface_hub import snapshot_download
 
-            download_model(size, cache_dir=str(MODELS_DIR))
+            # качаем напрямую из хаба: faster_whisper при импорте тянет PyAV,
+            # который для скачивания не нужен
+            snapshot_download(
+                MODEL_REPOS[size],
+                cache_dir=str(MODELS_DIR),
+                allow_patterns=["*.bin", "*.json", "*.txt", "*.model"],
+            )
         except Exception as exc:
             error.append(exc)
         finally:
