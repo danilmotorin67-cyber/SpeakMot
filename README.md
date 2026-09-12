@@ -34,7 +34,14 @@ python main.py
 3. Нажмите `Ctrl+Alt+Space`, продиктуйте, нажмите ещё раз.
 4. Текст будет вставлен автоматически.
 
-## Сборка .exe
+## Готовая сборка
+
+Каждый push собирает `.exe` на GitHub Actions.
+Откройте вкладку **Actions** → последний запуск **Build Windows exe** →
+блок **Artifacts** → `SpeakMot-windows`. Распакуйте архив и запустите `SpeakMot.exe`
+(установка Python не нужна).
+
+## Сборка .exe локально
 
 ```bat
 build.bat
