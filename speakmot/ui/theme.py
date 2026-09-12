@@ -155,15 +155,15 @@ QPushButton#ghost {{
 }}
 QPushButton#ghost:hover {{ border-color: {ACCENT}; color: {ACCENT}; }}
 
-QComboBox, QLineEdit {{
+QComboBox, QLineEdit, QPlainTextEdit {{
     background: {SURFACE_2};
     border: 1px solid {BORDER};
     border-radius: 9px;
     padding: 8px 12px;
     selection-background-color: {ACCENT};
 }}
-QComboBox:hover, QLineEdit:hover {{ border-color: #333a4d; }}
-QComboBox:focus, QLineEdit:focus {{ border-color: {ACCENT}; }}
+QComboBox:hover, QLineEdit:hover, QPlainTextEdit:hover {{ border-color: #333a4d; }}
+QComboBox:focus, QLineEdit:focus, QPlainTextEdit:focus {{ border-color: {ACCENT}; }}
 QComboBox::drop-down {{ border: none; width: 26px; }}
 QComboBox QAbstractItemView {{
     background: {SURFACE_2};

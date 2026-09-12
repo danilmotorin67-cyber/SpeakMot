@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from .. import autostart
 from .. import engine as engine_states
 from ..config import Config
 from ..engine import Engine
@@ -63,8 +64,21 @@ class SpeakMotApp:
         self._overlay_timer.timeout.connect(self._push_overlay_level)
         self._overlay_timer.start(45)
 
+        self._sync_autostart()
         self.engine.install_hotkey()
         self.engine.preload_model()
+
+    def _sync_autostart(self) -> None:
+        """Приводит запись в реестре в соответствие с настройкой.
+
+        Путь к приложению меняется при переустановке, поэтому запись
+        переписывается при каждом запуске.
+        """
+        try:
+            if self.cfg.autostart or autostart.is_enabled():
+                autostart.set_enabled(self.cfg.autostart)
+        except OSError:
+            pass
 
     # --- трей ---
 
@@ -104,7 +118,7 @@ class SpeakMotApp:
         elif state == engine_states.TRANSCRIBING:
             self.overlay.show_transcribing()
         elif state == engine_states.IDLE:
-            self.overlay.show_done("Готово")
+            self.overlay.show_done(message or "Готово")
         elif state == engine_states.ERROR:
             self.overlay.show_error(message or "Ошибка")
             self.tray.showMessage("SpeakMot", message or "Ошибка", build_icon(), 4000)

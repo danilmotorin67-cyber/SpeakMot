@@ -205,7 +205,8 @@ class MicButton(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        if self.isEnabled():
+            self.clicked.emit()
 
     def sizeHint(self) -> QSize:
         return QSize(112, 112)

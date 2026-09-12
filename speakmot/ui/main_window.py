@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -17,9 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import autostart
 from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
+from ..textproc import format_replacements, parse_replacements
 from .widgets import Card, MicButton, ToggleSwitch, Waveform
 
 MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3"]
@@ -32,6 +35,13 @@ MODEL_HINTS = {
 }
 LANGUAGES = {"Русский": "ru", "English": "en", "Автоопределение": "auto"}
 MODES = {"Переключением": "toggle", "Удержанием": "hold"}
+PASTE_METHODS = {"Вставкой (Ctrl+V)": "clipboard", "Вводом символов": "typing"}
+SILENCE_OPTIONS = {
+    "Выключен": 0.0,
+    "Через 1 секунду": 1.0,
+    "Через 2 секунды": 2.0,
+    "Через 3 секунды": 3.0,
+}
 
 
 class TitleBar(QWidget):
@@ -331,6 +341,19 @@ class MainWindow(QWidget):
         position = self.device_combo.findData(self.cfg.input_device)
         self.device_combo.setCurrentIndex(max(0, position))
         audio_card.body().addLayout(self._setting_row("Микрофон", "", self.device_combo))
+
+        self.silence_combo = QComboBox()
+        for label, value in SILENCE_OPTIONS.items():
+            self.silence_combo.addItem(label, value)
+        silence_position = self.silence_combo.findData(self.cfg.silence_stop)
+        self.silence_combo.setCurrentIndex(max(0, silence_position))
+        audio_card.body().addLayout(
+            self._setting_row(
+                "Автостоп по тишине",
+                "Запись закончится сама, когда вы замолчите",
+                self.silence_combo,
+            )
+        )
         layout.addWidget(audio_card)
 
         # поведение
@@ -343,13 +366,51 @@ class MainWindow(QWidget):
                 self.paste_switch,
             )
         )
+        self.method_combo = QComboBox()
+        for label, value in PASTE_METHODS.items():
+            self.method_combo.addItem(label, value)
+        method_position = self.method_combo.findData(self.cfg.paste_method)
+        self.method_combo.setCurrentIndex(max(0, method_position))
+        behavior_card.body().addLayout(
+            self._setting_row(
+                "Способ вставки",
+                "Если Ctrl+V не срабатывает, выберите ввод символами",
+                self.method_combo,
+            )
+        )
+
         self.sound_switch = ToggleSwitch(self.cfg.sound_feedback)
         behavior_card.body().addLayout(
             self._setting_row(
                 "Звуковой сигнал", "Короткий сигнал в начале и в конце записи", self.sound_switch
             )
         )
+
+        self.autostart_switch = ToggleSwitch(self.cfg.autostart)
+        behavior_card.body().addLayout(
+            self._setting_row(
+                "Запуск вместе с Windows",
+                "Приложение будет стартовать свёрнутым в трей",
+                self.autostart_switch,
+            )
+        )
         layout.addWidget(behavior_card)
+
+        # словарь замен
+        replacements_card = Card("Словарь замен")
+        description = QLabel(
+            "По одной паре в строке: «было = стало». Применяется к каждому "
+            "распознанному тексту без учёта регистра."
+        )
+        description.setObjectName("settingDesc")
+        description.setWordWrap(True)
+        replacements_card.add(description)
+
+        self.replacements_edit = QPlainTextEdit(format_replacements(self.cfg.replacements))
+        self.replacements_edit.setPlaceholderText("пайтон = Python\nгит хаб = GitHub")
+        self.replacements_edit.setFixedHeight(120)
+        replacements_card.add(self.replacements_edit)
+        layout.addWidget(replacements_card)
         layout.addStretch(1)
 
         save_row = QHBoxLayout()
@@ -393,6 +454,7 @@ class MainWindow(QWidget):
     def apply_state(self, state: str, message: str) -> None:
         recording = state == engine_states.RECORDING
         self.mic_button.set_recording(recording)
+        self.mic_button.setEnabled(state != engine_states.LOADING)
         self.home_waveform.set_active(recording)
 
         texts = {
@@ -471,7 +533,16 @@ class MainWindow(QWidget):
         cfg.language = LANGUAGES[self.lang_combo.currentText()]
         cfg.input_device = self.device_combo.currentData()
         cfg.auto_paste = self.paste_switch.isChecked()
+        cfg.paste_method = self.method_combo.currentData()
         cfg.sound_feedback = self.sound_switch.isChecked()
+        cfg.silence_stop = self.silence_combo.currentData()
+        cfg.replacements = parse_replacements(self.replacements_edit.toPlainText())
+
+        cfg.autostart = self.autostart_switch.isChecked()
+        try:
+            autostart.set_enabled(cfg.autostart)
+        except OSError as exc:
+            self.status_label.setText(f"Не удалось изменить автозапуск: {exc}")
 
         model_changed = cfg.model_size != self.model_combo.currentText()
         cfg.model_size = self.model_combo.currentText()

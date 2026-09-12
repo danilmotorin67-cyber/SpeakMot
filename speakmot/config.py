@@ -12,13 +12,17 @@ class Config:
     hotkey: str = "ctrl+alt+space"
     hotkey_mode: str = "toggle"  # "toggle" | "hold"
     model_size: str = "small"
-    language: str = "ru"  # "auto" for autodetect
+    language: str = "ru"  # "auto" для автоопределения
     device: str = "auto"  # "auto" | "cpu" | "cuda"
     compute_type: str = "auto"
     input_device: int | None = None
     sample_rate: int = 16000
     auto_paste: bool = True
+    paste_method: str = "clipboard"  # "clipboard" | "typing"
     sound_feedback: bool = True
+    autostart: bool = False
+    silence_stop: float = 0.0  # секунды тишины до автостопа, 0 — выключено
+    replacements: dict[str, str] = field(default_factory=dict)
     history: list[str] = field(default_factory=list)
 
     @classmethod
@@ -27,7 +31,10 @@ class Config:
             cfg = cls()
             cfg.save()
             return cfg
-        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return cls()
         known = {f: data[f] for f in cls.__dataclass_fields__ if f in data}
         return cls(**known)
 

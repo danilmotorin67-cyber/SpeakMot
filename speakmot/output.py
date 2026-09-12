@@ -1,3 +1,4 @@
+import contextlib
 import time
 
 import keyboard
@@ -23,10 +24,26 @@ def paste_text(text: str) -> None:
 
     if previous is not None:
         time.sleep(0.3)
-        try:
+        with contextlib.suppress(Exception):
             pyperclip.copy(previous)
-        except Exception:
-            pass
+
+
+def type_text(text: str) -> None:
+    """Набирает текст посимвольно.
+
+    Медленнее вставки, зато работает там, где Ctrl+V перехвачен или запрещён:
+    в окнах с повышенными правами, в играх, в некоторых терминалах.
+    """
+    if not text:
+        return
+    keyboard.write(text, delay=0.005)
+
+
+def deliver(text: str, method: str) -> None:
+    if method == "typing":
+        type_text(text)
+    else:
+        paste_text(text)
 
 
 def copy_text(text: str) -> None:
