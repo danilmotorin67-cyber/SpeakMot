@@ -1,4 +1,6 @@
+import io
 import shutil
+import sys
 import threading
 from pathlib import Path
 
@@ -68,6 +70,27 @@ def delete(size: str) -> None:
     shutil.rmtree(model_dir(size), ignore_errors=True)
 
 
+def _with_streams(function):
+    """Гарантирует потоки вывода на время работы функции.
+
+    В сборке без консоли sys.stdout и sys.stderr равны None, и печать из
+    любой библиотеки роняет загрузку.
+    """
+
+    def wrapper(*args, **kwargs):
+        saved = sys.stdout, sys.stderr
+        if sys.stdout is None:
+            sys.stdout = io.StringIO()
+        if sys.stderr is None:
+            sys.stderr = io.StringIO()
+        try:
+            return function(*args, **kwargs)
+        finally:
+            sys.stdout, sys.stderr = saved
+
+    return wrapper
+
+
 def download(size: str, on_progress) -> None:
     """Скачивает модель, сообщая прогресс от 0 до 100.
 
@@ -83,6 +106,11 @@ def download(size: str, on_progress) -> None:
     def worker():
         try:
             from huggingface_hub import snapshot_download
+            from huggingface_hub.utils import disable_progress_bars
+
+            # прогресс рисуем сами; полоска tqdm пишет в stderr, которого
+            # в окне без консоли просто нет
+            disable_progress_bars()
 
             # качаем напрямую из хаба: faster_whisper при импорте тянет PyAV,
             # который для скачивания не нужен
@@ -96,7 +124,7 @@ def download(size: str, on_progress) -> None:
         finally:
             finished.set()
 
-    thread = threading.Thread(target=worker, daemon=True)
+    thread = threading.Thread(target=_with_streams(worker), daemon=True)
     thread.start()
 
     on_progress(0)

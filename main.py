@@ -1,13 +1,28 @@
+import io
 import sys
 
 
-def selftest(report_path: str) -> int:
-    """Проверяет, что собранное приложение может импортировать всё, что ему нужно.
+def ensure_streams() -> None:
+    """Подставляет заглушки вместо отсутствующих потоков вывода.
 
-    Сборка PyInstaller легко теряет C-расширения (например av._core у PyAV),
-    и обнаруживается это только в момент распознавания. Проверка гоняет те же
-    импорты заранее, поэтому падает на сборке, а не у пользователя.
+    В сборке PyInstaller с ключом --windowed у процесса нет консоли, поэтому
+    sys.stdout и sys.stderr равны None. Любая библиотека, которая печатает
+    прогресс или предупреждение, падает на этом с AttributeError.
     """
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            setattr(sys, name, io.StringIO())
+
+
+def selftest(report_path: str) -> int:
+    """Проверяет, что собранное приложение умеет всё, что нужно в бою.
+
+    Сначала импорты (сборка легко теряет C-расширения вроде av._core), затем
+    настоящее скачивание самой маленькой модели — причём с отключёнными
+    потоками вывода, как в реальном окне без консоли.
+    """
+    from speakmot import models
+
     lines = []
     failed = False
     checks = [
@@ -22,10 +37,34 @@ def selftest(report_path: str) -> int:
     for name, probe in checks:
         try:
             probe()
-            lines.append(f"OK    {name}")
+            lines.append(f"OK    импорт {name}")
         except Exception as exc:
             failed = True
-            lines.append(f"FAIL  {name}: {type(exc).__name__}: {exc}")
+            lines.append(f"FAIL  импорт {name}: {type(exc).__name__}: {exc}")
+
+    percents: list[int] = []
+    saved = sys.stdout, sys.stderr
+    try:
+        # воспроизводим окно без консоли: так ловится вывод в несуществующий поток
+        sys.stdout = sys.stderr = None
+        models.download("tiny", percents.append)
+        installed = models.is_installed("tiny")
+    except Exception as exc:
+        installed = False
+        failed = True
+        error = f"{type(exc).__name__}: {exc}"
+    else:
+        error = ""
+    finally:
+        sys.stdout, sys.stderr = saved
+
+    if error:
+        lines.append(f"FAIL  загрузка модели tiny: {error}")
+    elif not installed:
+        failed = True
+        lines.append("FAIL  загрузка модели tiny: файлы не появились на диске")
+    else:
+        lines.append(f"OK    загрузка модели tiny, шагов прогресса: {len(percents)}")
 
     report = "\n".join(lines)
     with open(report_path, "w", encoding="utf-8") as handle:
@@ -35,6 +74,8 @@ def selftest(report_path: str) -> int:
 
 
 if __name__ == "__main__":
+    ensure_streams()
+
     if "--selftest" in sys.argv:
         index = sys.argv.index("--selftest")
         path = sys.argv[index + 1] if len(sys.argv) > index + 1 else "selftest.txt"

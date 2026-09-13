@@ -1,6 +1,6 @@
 ; Установщик SpeakMot. Собирается через ISCC installer.iss после PyInstaller.
 #define AppName "SpeakMot"
-#define AppVersion "0.4.0"
+#define AppVersion "0.4.1"
 
 [Setup]
 AppName={#AppName}
