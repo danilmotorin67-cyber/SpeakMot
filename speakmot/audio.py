@@ -83,6 +83,21 @@ class Recorder:
         return np.concatenate(parts).astype(np.float32)
 
 
+def normalize(audio: np.ndarray, target_peak: float = 0.9) -> np.ndarray:
+    """Подтягивает громкость записи к рабочему уровню.
+
+    Тихий микрофон — частая причина пропущенных слов: Whisper хуже слышит
+    сигнал с пиком в пару процентов. Совсем тихую дорожку не трогаем, иначе
+    вместе с шумом усилится и он.
+    """
+    if audio.size == 0:
+        return audio
+    peak = float(np.abs(audio).max())
+    if peak < 0.005 or peak >= target_peak:
+        return audio
+    return (audio * (target_peak / peak)).astype(np.float32)
+
+
 def list_input_devices() -> list[tuple[int, str]]:
     devices = []
     for index, device in enumerate(sd.query_devices()):

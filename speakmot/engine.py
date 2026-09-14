@@ -5,7 +5,7 @@ import traceback
 import keyboard
 
 from . import output, profiles, voice_commands, winapi
-from .audio import Recorder
+from .audio import Recorder, normalize
 from .config import Config
 from .profiles import Profile
 from .textproc import apply_replacements
@@ -18,6 +18,7 @@ LOADING = "loading"
 ERROR = "error"
 
 MODIFIERS = {"ctrl", "alt", "shift", "windows", "win", "cmd"}
+LANGUAGE_NAMES = {"ru": "русский", "en": "английский", "auto": "автоопределение"}
 
 
 def hotkey_keys(hotkey: str) -> set[str]:
@@ -31,10 +32,11 @@ class Engine:
     переносить их в свой поток самостоятельно.
     """
 
-    def __init__(self, cfg: Config, on_state=None, on_result=None):
+    def __init__(self, cfg: Config, on_state=None, on_result=None, on_language_changed=None):
         self.cfg = cfg
         self.on_state = on_state or (lambda state, message: None)
         self.on_result = on_result or (lambda text: None)
+        self.on_language_changed = on_language_changed or (lambda language: None)
         self.recorder = Recorder(cfg.sample_rate, cfg.input_device)
         self.transcriber = Transcriber(cfg)
         self.state = IDLE
@@ -64,6 +66,14 @@ class Engine:
             )
             if self.cfg.hotkey_mode == "hold":
                 self._release_hook = keyboard.hook(self._on_key_event)
+            if self.cfg.language_hotkey.strip():
+                self._hotkey_handles.append(
+                    keyboard.add_hotkey(
+                        self.cfg.language_hotkey.strip(),
+                        self.switch_language,
+                        suppress=False,
+                    )
+                )
         except Exception as exc:
             self._set_state(ERROR, f"Не удалось назначить {self.cfg.hotkey}: {exc}")
             return
@@ -109,6 +119,18 @@ class Engine:
         with contextlib.suppress(Exception):
             keyboard.remove_hotkey(self._cancel_hook)
         self._cancel_hook = None
+
+    def switch_language(self) -> None:
+        """Переключает язык между русским и английским прямо во время работы."""
+        order = ["ru", "en", "auto"]
+        try:
+            following = order[(order.index(self.cfg.language) + 1) % len(order)]
+        except ValueError:
+            following = "ru"
+        self.cfg.language = following
+        self.cfg.save()
+        self.on_language_changed(following)
+        self._set_state(IDLE, f"Язык: {LANGUAGE_NAMES.get(following, following)}")
 
     # --- запись ---
 
@@ -186,7 +208,11 @@ class Engine:
         with self._busy:
             settings = self.resolved or profiles.resolve(self.cfg, [], "", "")
             try:
-                text = self.transcriber.transcribe(audio, language=settings.language)
+                text = self.transcriber.transcribe(
+                    normalize(audio),
+                    language=settings.language,
+                    translate=self.cfg.translate_to_english,
+                )
             except Exception:
                 traceback.print_exc()
                 self._set_state(ERROR, "Ошибка распознавания")

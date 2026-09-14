@@ -1,10 +1,12 @@
 import threading
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QComboBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -18,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import autostart
+from .. import __version__, autostart, updater
 from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
@@ -89,6 +91,7 @@ class MainWindow(QWidget):
     """Главное окно: боковая навигация и три страницы."""
 
     hotkey_captured = Signal(str)
+    update_checked = Signal(bool, str, str)
 
     def __init__(self, app_controller):
         super().__init__()
@@ -130,6 +133,7 @@ class MainWindow(QWidget):
         body.addWidget(self.pages, 1)
 
         self.hotkey_captured.connect(self._on_hotkey_captured)
+        self.update_checked.connect(self._on_update_checked)
 
         self._level_timer = QTimer(self)
         self._level_timer.timeout.connect(self._poll_level)
@@ -244,12 +248,23 @@ class MainWindow(QWidget):
         title.setObjectName("pageTitle")
         header.addWidget(title)
         header.addStretch(1)
+        export_button = QPushButton("Экспорт")
+        export_button.setObjectName("ghost")
+        export_button.setCursor(Qt.PointingHandCursor)
+        export_button.clicked.connect(self._export_history)
+        header.addWidget(export_button)
+
         clear_button = QPushButton("Очистить")
-        clear_button.setObjectName("ghost")
+        clear_button.setObjectName("danger")
         clear_button.setCursor(Qt.PointingHandCursor)
         clear_button.clicked.connect(self._clear_history)
         header.addWidget(clear_button)
         layout.addLayout(header)
+
+        self.history_search = QLineEdit()
+        self.history_search.setPlaceholderText("Поиск по истории")
+        self.history_search.textChanged.connect(self._filter_history)
+        layout.addWidget(self.history_search)
 
         scroll = _scroll_area()
         container = QWidget()
@@ -298,6 +313,16 @@ class MainWindow(QWidget):
             )
         )
 
+        self.language_hotkey_edit = QLineEdit(self.cfg.language_hotkey)
+        self.language_hotkey_edit.setPlaceholderText("например ctrl+alt+l")
+        hotkey_card.body().addLayout(
+            self._setting_row(
+                "Смена языка",
+                "Переключает русский → английский → автоопределение",
+                self.language_hotkey_edit,
+            )
+        )
+
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(MODES.keys())
         self.mode_combo.setCurrentText(
@@ -327,6 +352,14 @@ class MainWindow(QWidget):
         )
         model_card.body().addLayout(
             self._setting_row("Язык", "Указание языка ускоряет распознавание", self.lang_combo)
+        )
+        self.translate_switch = ToggleSwitch(self.cfg.translate_to_english)
+        model_card.body().addLayout(
+            self._setting_row(
+                "Переводить на английский",
+                "Речь на любом языке — текст на английском",
+                self.translate_switch,
+            )
         )
         layout.addWidget(model_card)
 
@@ -432,6 +465,20 @@ class MainWindow(QWidget):
         )
         layout.addWidget(appearance_card)
 
+        # обновления
+        update_card = Card("Обновление")
+        self.update_status = QLabel(f"Установлена версия {__version__}")
+        self.update_status.setObjectName("settingDesc")
+        self.update_status.setWordWrap(True)
+        self.check_update_button = QPushButton("Проверить")
+        self.check_update_button.setObjectName("ghost")
+        self.check_update_button.setCursor(Qt.PointingHandCursor)
+        self.check_update_button.clicked.connect(self._check_updates)
+        update_card.body().addLayout(
+            self._setting_row("Версия", self.update_status, self.check_update_button)
+        )
+        layout.addWidget(update_card)
+
         # словарь замен
         replacements_card = Card("Словарь замен")
         description = QLabel(
@@ -482,6 +529,29 @@ class MainWindow(QWidget):
             row.addWidget(widget, 0)
         return row
 
+    def _check_updates(self) -> None:
+        self.check_update_button.setEnabled(False)
+        self.update_status.setText("Проверяю…")
+
+        def worker():
+            self.update_checked.emit(*updater.check())
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_checked(self, available: bool, version: str, page: str) -> None:
+        self.check_update_button.setEnabled(True)
+        if available:
+            self.update_status.setText(f"Доступна версия {version}")
+            self.check_update_button.setText("Скачать")
+            self.check_update_button.clicked.disconnect()
+            self.check_update_button.clicked.connect(
+                lambda: QDesktopServices.openUrl(QUrl(page))
+            )
+        elif version:
+            self.update_status.setText(f"Установлена последняя версия {__version__}")
+        else:
+            self.update_status.setText("Не удалось проверить обновления")
+
     def _preview_appearance(self) -> None:
         """Показывает тему сразу, не дожидаясь кнопки «Сохранить»."""
         self.controller.apply_appearance(
@@ -528,6 +598,7 @@ class MainWindow(QWidget):
 
     def _append_history_card(self, text: str, to_top: bool) -> None:
         card = Card()
+        card.history_text = text
         label = QLabel(text)
         label.setObjectName("resultText")
         label.setWordWrap(True)
@@ -545,6 +616,30 @@ class MainWindow(QWidget):
         index = 0 if to_top else self.history_layout.count() - 1
         self.history_layout.insertWidget(index, card)
 
+    def _filter_history(self, query: str) -> None:
+        needle = query.strip().lower()
+        for index in range(self.history_layout.count()):
+            item = self.history_layout.itemAt(index)
+            card = item.widget()
+            if card is None:
+                continue
+            text = getattr(card, "history_text", "")
+            card.setVisible(needle in text.lower())
+
+    def _export_history(self) -> None:
+        if not self.cfg.history:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить историю", "speakmot-history.txt", "Текст (*.txt)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("\n\n".join(self.cfg.history))
+        except OSError as exc:
+            self.history_search.setPlaceholderText(f"Не удалось сохранить: {exc}")
+
     def _clear_history(self) -> None:
         self.cfg.history.clear()
         self.cfg.save()
@@ -552,6 +647,7 @@ class MainWindow(QWidget):
             item = self.history_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        self.history_search.clear()
 
     # --- настройки ---
 
@@ -589,6 +685,8 @@ class MainWindow(QWidget):
         cfg.replacements = parse_replacements(self.replacements_edit.toPlainText())
 
         cfg.voice_commands = self.commands_switch.isChecked()
+        cfg.translate_to_english = self.translate_switch.isChecked()
+        cfg.language_hotkey = self.language_hotkey_edit.text().strip()
         cfg.preview_before_paste = self.preview_switch.isChecked()
         cfg.theme = self.theme_combo.currentData()
         cfg.accent = self.accent_combo.currentData()

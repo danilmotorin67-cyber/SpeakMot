@@ -66,11 +66,50 @@ def selftest(report_path: str) -> int:
     else:
         lines.append(f"OK    загрузка модели tiny, шагов прогресса: {len(percents)}")
 
+    if installed:
+        line = _check_transcription()
+        failed = failed or line.startswith("FAIL")
+        lines.append(line)
+
     report = "\n".join(lines)
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write(report + "\n")
     print(report)
     return 1 if failed else 0
+
+
+def _check_transcription() -> str:
+    """Прогоняет через модель настоящий звук.
+
+    Импорт библиотеки ещё ничего не доказывает: ctranslate2 и tokenizers
+    подтягивают свои DLL уже при создании модели, а распознавание — единственный
+    путь, который это выполняет.
+    """
+    import numpy as np
+
+    from speakmot.config import Config
+    from speakmot.transcriber import Transcriber
+
+    try:
+        cfg = Config()
+        cfg.model_size = "tiny"
+        cfg.language = "en"
+        transcriber = Transcriber(cfg)
+
+        seconds, rate = 2.0, 16000
+        time_axis = np.linspace(0, seconds, int(rate * seconds), dtype=np.float32)
+        # тон с затуханием: распознать нечего, но весь конвейер отрабатывает
+        audio = (0.2 * np.sin(2 * np.pi * 220 * time_axis) * np.exp(-time_axis)).astype(
+            np.float32
+        )
+
+        text = transcriber.transcribe(audio)
+    except Exception as exc:
+        return f"FAIL  распознавание: {type(exc).__name__}: {exc}"
+
+    if not isinstance(text, str):
+        return f"FAIL  распознавание: вернулся {type(text).__name__}, а не строка"
+    return f"OK    распознавание отработало, символов в ответе: {len(text)}"
 
 
 if __name__ == "__main__":

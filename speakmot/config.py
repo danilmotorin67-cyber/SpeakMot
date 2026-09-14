@@ -24,6 +24,8 @@ class Config:
     theme: str = "dark"  # "dark" | "light"
     accent: str = "#5b8cff"
     voice_commands: bool = True
+    translate_to_english: bool = False
+    language_hotkey: str = ""  # быстрое переключение языка, пусто — выключено
     preview_before_paste: bool = False
     profiles: list[dict] = field(default_factory=list)
     silence_stop: float = 0.0  # секунды тишины до автостопа, 0 — выключено

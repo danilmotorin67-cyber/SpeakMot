@@ -85,7 +85,9 @@ class Transcriber:
         with self._lock:
             self._model = None
 
-    def transcribe(self, audio: np.ndarray, language: str | None = None) -> str:
+    def transcribe(
+        self, audio: np.ndarray, language: str | None = None, translate: bool = False
+    ) -> str:
         if audio.size == 0:
             return ""
         self.load()
@@ -94,6 +96,7 @@ class Transcriber:
         segments, _ = self._model.transcribe(
             audio,
             language=language,
+            task="translate" if translate else "transcribe",
             beam_size=5,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 500},
