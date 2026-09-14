@@ -4,6 +4,7 @@ from collections import deque
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
+    QPointF,
     QPropertyAnimation,
     QRectF,
     QSize,
@@ -11,17 +12,24 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QLinearGradient,
+    QPainter,
+    QPen,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QFrame,
     QGraphicsDropShadowEffect,
-    QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
 
-from . import theme
+from . import icons, theme
 
 
 class Card(QFrame):
@@ -30,6 +38,11 @@ class Card(QFrame):
     def __init__(self, title: str | None = None, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(26)
+        shadow.setColor(QColor(0, 0, 0, 46))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(18, 16, 18, 16)
         self._layout.setSpacing(10)
@@ -105,6 +118,81 @@ class ToggleSwitch(QWidget):
         painter.drawEllipse(QRectF(x, 3, 20, 20))
 
 
+class NavButton(QAbstractButton):
+    """Пункт бокового меню: иконка, подпись и полоска у активного."""
+
+    def __init__(self, label: str, icon: str, parent=None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(42)
+        self._label = label
+        self._icon = icon
+        self._hover = False
+
+    def enterEvent(self, event):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event):
+        self._hover = False
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        rect = QRectF(self.rect())
+
+        if self.isChecked():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(theme.color("surface3")))
+            painter.drawRoundedRect(rect.adjusted(0, 1, 0, -1), 11, 11)
+            painter.setBrush(QColor(theme.color("accent")))
+            painter.drawRoundedRect(QRectF(0, rect.height() / 2 - 9, 3, 18), 2, 2)
+        elif self._hover:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(theme.color("surface2")))
+            painter.drawRoundedRect(rect.adjusted(0, 1, 0, -1), 11, 11)
+
+        tint = theme.color("text") if self.isChecked() else theme.color("text_dim")
+        icons.draw(painter, self._icon, QRectF(14, rect.height() / 2 - 9, 18, 18), tint)
+
+        painter.setPen(QColor(tint))
+        font = painter.font()
+        font.setPointSizeF(10.5)
+        font.setWeight(QFont.Weight.DemiBold if self.isChecked() else QFont.Weight.Normal)
+        painter.setFont(font)
+        painter.drawText(
+            QRectF(42, 0, rect.width() - 50, rect.height()),
+            Qt.AlignVCenter | Qt.AlignLeft,
+            self._label,
+        )
+
+
+class StatusDot(QWidget):
+    """Цветная точка состояния с мягким ореолом."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(10, 10)
+        self._color = theme.color("success")
+
+    def set_color(self, color: str) -> None:
+        self._color = color
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        halo = QColor(self._color)
+        halo.setAlpha(60)
+        painter.setBrush(halo)
+        painter.drawEllipse(self.rect())
+        painter.setBrush(QColor(self._color))
+        painter.drawEllipse(self.rect().adjusted(3, 3, -3, -3))
+
+
 class Waveform(QWidget):
     """Полосы, отражающие громкость микрофона в реальном времени."""
 
@@ -114,10 +202,15 @@ class Waveform(QWidget):
         self._bars = bars
         self._phase = 0.0
         self._active = False
+        self._role = "accent"
         self.setMinimumHeight(34)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(45)
+
+    def set_role(self, role: str) -> None:
+        self._role = role
+        self.update()
 
     def set_active(self, active: bool) -> None:
         self._active = active
@@ -143,7 +236,7 @@ class Waveform(QWidget):
         gap = 3
         width = max(2.0, (self.width() - gap * (count - 1)) / count)
         middle = self.height() / 2
-        accent = QColor(theme.color("accent"))
+        accent = QColor(theme.color(self._role))
 
         for index, level in enumerate(self._levels):
             if self._active:
@@ -169,7 +262,7 @@ class MicButton(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(112, 112)
+        self.setFixedSize(150, 150)
         self.setCursor(Qt.PointingHandCursor)
         self._recording = False
         self._pulse = 0.0
@@ -178,14 +271,14 @@ class MicButton(QWidget):
         self._timer.timeout.connect(self._tick)
 
         self._shadow = QGraphicsDropShadowEffect(self)
-        self._shadow.setBlurRadius(38)
-        self._shadow.setOffset(0, 6)
+        self._shadow.setBlurRadius(30)
+        self._shadow.setOffset(0, 8)
         self.refresh_theme()
         self.setGraphicsEffect(self._shadow)
 
     def refresh_theme(self) -> None:
         glow = QColor(theme.color("accent"))
-        glow.setAlpha(90)
+        glow.setAlpha(70)
         self._shadow.setColor(glow)
         self.update()
 
@@ -215,55 +308,58 @@ class MicButton(QWidget):
             self.clicked.emit()
 
     def sizeHint(self) -> QSize:
-        return QSize(112, 112)
+        return QSize(150, 150)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        center = self.rect().center()
-        radius = 44.0
-
-        if self._recording:
-            ring = radius + 6 + self._pulse * 16
-            color = QColor(theme.color("danger"))
-            color.setAlphaF(max(0.0, 0.35 * (1.0 - self._pulse)))
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(color)
-            painter.drawEllipse(center, ring, ring)
-
+        center = QPointF(self.rect().center())
+        radius = 46.0
         base = QColor(theme.color("danger") if self._recording else theme.color("accent"))
-        if self._hover:
-            base = base.lighter(112)
+
+        # расходящиеся кольца во время записи
+        if self._recording:
+            for offset in (0.0, 0.5):
+                phase = (self._pulse + offset) % 1.0
+                ring = radius + 4 + phase * 22
+                glow = QColor(base)
+                glow.setAlphaF(max(0.0, 0.30 * (1.0 - phase)))
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(glow)
+                painter.drawEllipse(center, ring, ring)
+
+        # мягкая подложка под кнопкой
+        halo = QRadialGradient(center, radius * 1.55)
+        soft = QColor(base)
+        soft.setAlpha(34 if self._hover else 22)
+        halo.setColorAt(0.62, soft)
+        soft_edge = QColor(base)
+        soft_edge.setAlpha(0)
+        halo.setColorAt(1.0, soft_edge)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(base)
+        painter.setBrush(halo)
+        painter.drawEllipse(center, radius * 1.55, radius * 1.55)
+
+        gradient = QLinearGradient(
+            center.x(), center.y() - radius, center.x(), center.y() + radius
+        )
+        top = base.lighter(122 if self._hover else 114)
+        gradient.setColorAt(0.0, top)
+        gradient.setColorAt(1.0, base.darker(112))
+        painter.setBrush(gradient)
         painter.drawEllipse(center, radius, radius)
 
-        painter.setPen(QPen(QColor("#ffffff"), 3.2, Qt.SolidLine, Qt.RoundCap))
+        # тонкий блик по верхней кромке
+        rim = QColor("#ffffff")
+        rim.setAlpha(38)
+        painter.setPen(QPen(rim, 1.4))
         painter.setBrush(Qt.NoBrush)
+        painter.drawEllipse(center, radius - 0.7, radius - 0.7)
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#ffffff"))
         cx, cy = center.x(), center.y()
         if self._recording:
-            painter.setBrush(QColor("#ffffff"))
-            painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(QRectF(cx - 11, cy - 11, 22, 22), 5, 5)
+            painter.drawRoundedRect(QRectF(cx - 11, cy - 11, 22, 22), 6, 6)
         else:
-            capsule = QRectF(cx - 9, cy - 20, 18, 26)
-            painter.setBrush(QColor("#ffffff"))
-            painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(capsule, 9, 9)
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(QColor("#ffffff"), 3.2, Qt.SolidLine, Qt.RoundCap))
-            arc = QPainterPath()
-            arc.arcMoveTo(QRectF(cx - 16, cy - 12, 32, 32), 200)
-            arc.arcTo(QRectF(cx - 16, cy - 12, 32, 32), 200, 140)
-            painter.drawPath(arc)
-            painter.drawLine(cx, cy + 20, cx, cy + 26)
-
-
-def row(*widgets: QWidget, spacing: int = 10) -> QWidget:
-    container = QWidget()
-    layout = QHBoxLayout(container)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(spacing)
-    for widget in widgets:
-        layout.addWidget(widget)
-    return container
+            icons.draw(painter, "mic", QRectF(cx - 23, cy - 23, 46, 46), "#ffffff")

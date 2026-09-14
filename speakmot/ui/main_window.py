@@ -20,15 +20,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, autostart, updater
+from .. import __version__, autostart, hotkeys, updater
 from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
 from ..textproc import format_replacements, parse_replacements
 from . import theme
+from .hotkey_edit import HotkeyEdit
 from .models_page import ModelsPage
 from .profiles_page import ProfilesPage
-from .widgets import Card, MicButton, ToggleSwitch, Waveform
+from .widgets import Card, MicButton, NavButton, StatusDot, ToggleSwitch, Waveform
 
 LANGUAGES = {"Русский": "ru", "English": "en", "Автоопределение": "auto"}
 MODES = {"Переключением": "toggle", "Удержанием": "hold"}
@@ -54,9 +55,6 @@ class TitleBar(QWidget):
         layout.setContentsMargins(18, 0, 10, 0)
         layout.setSpacing(6)
 
-        title = QLabel("SPEAKMOT")
-        title.setObjectName("titleLabel")
-        layout.addWidget(title)
         layout.addStretch(1)
 
         for text, name, slot in (
@@ -90,7 +88,6 @@ class TitleBar(QWidget):
 class MainWindow(QWidget):
     """Главное окно: боковая навигация и три страницы."""
 
-    hotkey_captured = Signal(str)
     update_checked = Signal(bool, str, str)
 
     def __init__(self, app_controller):
@@ -132,7 +129,6 @@ class MainWindow(QWidget):
         self.pages.addWidget(self._build_settings_page())
         body.addWidget(self.pages, 1)
 
-        self.hotkey_captured.connect(self._on_hotkey_captured)
         self.update_checked.connect(self._on_update_checked)
 
         self._level_timer = QTimer(self)
@@ -144,45 +140,61 @@ class MainWindow(QWidget):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(212)
+        sidebar.setFixedWidth(228)
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(16, 8, 16, 16)
         layout.setSpacing(6)
 
-        brand = QLabel("SpeakMot")
+        brand = QLabel("SpeakMotor")
         brand.setObjectName("brand")
-        subtitle = QLabel("ГОЛОС В ТЕКСТ")
+        subtitle = QLabel("ДИКТОВКА")
         subtitle.setObjectName("brandSub")
         layout.addWidget(brand)
         layout.addWidget(subtitle)
-        layout.addSpacing(22)
+        layout.addSpacing(26)
+
+        section = QLabel("РАЗДЕЛЫ")
+        section.setObjectName("sidebarSection")
+        layout.addWidget(section)
+        layout.addSpacing(6)
 
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
-        nav_items = ("  Запись", "  История", "  Модели", "  Профили", "  Настройки")
-        for index, label in enumerate(nav_items):
-            button = QPushButton(label)
-            button.setObjectName("navBtn")
-            button.setCheckable(True)
-            button.setCursor(Qt.PointingHandCursor)
+        nav_items = (
+            ("Запись", "mic"),
+            ("История", "clock"),
+            ("Модели", "box"),
+            ("Профили", "sliders"),
+            ("Настройки", "gear"),
+        )
+        for index, (label, icon) in enumerate(nav_items):
+            button = NavButton(label, icon)
             button.clicked.connect(lambda _checked, i=index: self.pages.setCurrentIndex(i))
             self.nav_group.addButton(button, index)
             layout.addWidget(button)
         self.nav_group.button(0).setChecked(True)
 
         layout.addStretch(1)
+
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
         self.model_badge = QLabel(self.cfg.model_size)
-        self.model_badge.setObjectName("badge")
+        self.model_badge.setObjectName("badgeAccent")
         self.model_badge.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.model_badge)
+        footer.addWidget(self.model_badge)
+        version = QLabel(f"v{__version__}")
+        version.setObjectName("badge")
+        version.setAlignment(Qt.AlignCenter)
+        footer.addWidget(version)
+        layout.addLayout(footer)
         return sidebar
 
     def _build_home_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(30, 24, 30, 26)
-        layout.setSpacing(16)
+        layout.setContentsMargins(36, 20, 36, 28)
+        layout.setSpacing(18)
 
         layout.addStretch(1)
 
@@ -194,19 +206,28 @@ class MainWindow(QWidget):
         mic_row.addStretch(1)
         layout.addLayout(mic_row)
 
+        status_row = QHBoxLayout()
+        status_row.setSpacing(10)
+        status_row.addStretch(1)
+        self.status_dot = StatusDot()
+        status_row.addWidget(self.status_dot)
         self.status_label = QLabel("Готов к работе")
         self.status_label.setObjectName("status")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.status_label)
+        status_row.addWidget(self.status_label)
+        status_row.addStretch(1)
+        layout.addLayout(status_row)
 
         hint_row = QHBoxLayout()
         hint_row.addStretch(1)
-        prefix = QLabel("Горячая клавиша")
-        prefix.setObjectName("hint")
-        self.hotkey_badge = QLabel(self._pretty_hotkey(self.cfg.hotkey))
+        prefix = QLabel("Нажмите")
+        prefix.setObjectName("statusHint")
+        self.hotkey_badge = QLabel(hotkeys.pretty(self.cfg.hotkey))
         self.hotkey_badge.setObjectName("kbd")
+        suffix = QLabel("или кнопку выше")
+        suffix.setObjectName("statusHint")
         hint_row.addWidget(prefix)
         hint_row.addWidget(self.hotkey_badge)
+        hint_row.addWidget(suffix)
         hint_row.addStretch(1)
         layout.addLayout(hint_row)
 
@@ -299,22 +320,18 @@ class MainWindow(QWidget):
 
         # горячая клавиша
         hotkey_card = Card("Управление")
-        self.hotkey_edit = QLineEdit(self.cfg.hotkey)
-        self.capture_button = QPushButton("Назначить")
-        self.capture_button.setObjectName("ghost")
-        self.capture_button.setCursor(Qt.PointingHandCursor)
-        self.capture_button.clicked.connect(self._capture_hotkey)
+        self.hotkey_edit = HotkeyEdit(self.cfg.hotkey)
+        self.hotkey_edit.setFixedWidth(210)
         hotkey_card.body().addLayout(
             self._setting_row(
                 "Горячая клавиша",
-                "Комбинация для старта и остановки записи",
+                "Нажмите поле и задайте сочетание",
                 self.hotkey_edit,
-                self.capture_button,
             )
         )
 
-        self.language_hotkey_edit = QLineEdit(self.cfg.language_hotkey)
-        self.language_hotkey_edit.setPlaceholderText("например ctrl+alt+l")
+        self.language_hotkey_edit = HotkeyEdit(self.cfg.language_hotkey)
+        self.language_hotkey_edit.setFixedWidth(210)
         hotkey_card.body().addLayout(
             self._setting_row(
                 "Смена языка",
@@ -568,14 +585,22 @@ class MainWindow(QWidget):
 
     # --- реакция на состояние ---
 
-    def _pretty_hotkey(self, hotkey: str) -> str:
-        return " + ".join(part.strip().title() for part in hotkey.split("+"))
-
     def apply_state(self, state: str, message: str) -> None:
         recording = state == engine_states.RECORDING
         self.mic_button.set_recording(recording)
         self.mic_button.setEnabled(state != engine_states.LOADING)
         self.home_waveform.set_active(recording)
+
+        dots = {
+            engine_states.IDLE: "success",
+            engine_states.RECORDING: "danger",
+            engine_states.TRANSCRIBING: "accent",
+            engine_states.LOADING: "accent",
+            engine_states.ERROR: "danger",
+        }
+        role = dots.get(state, "success")
+        self.status_dot.set_color(theme.color(role))
+        self.home_waveform.set_role("danger" if recording else "accent")
 
         texts = {
             engine_states.IDLE: "Готов к работе",
@@ -651,30 +676,9 @@ class MainWindow(QWidget):
 
     # --- настройки ---
 
-    def _capture_hotkey(self) -> None:
-        self.capture_button.setText("Нажмите…")
-        self.capture_button.setEnabled(False)
-
-        def worker():
-            import keyboard
-
-            try:
-                combo = keyboard.read_hotkey(suppress=False)
-            except Exception:
-                combo = ""
-            self.hotkey_captured.emit(combo)
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_hotkey_captured(self, combo: str) -> None:
-        self.capture_button.setText("Назначить")
-        self.capture_button.setEnabled(True)
-        if combo:
-            self.hotkey_edit.setText(combo)
-
     def _save_settings(self) -> None:
         cfg = self.cfg
-        cfg.hotkey = self.hotkey_edit.text().strip() or "ctrl+alt+space"
+        cfg.hotkey = self.hotkey_edit.combo() or "ctrl+alt+space"
         cfg.hotkey_mode = MODES[self.mode_combo.currentText()]
         cfg.language = LANGUAGES[self.lang_combo.currentText()]
         cfg.input_device = self.device_combo.currentData()
@@ -686,7 +690,7 @@ class MainWindow(QWidget):
 
         cfg.voice_commands = self.commands_switch.isChecked()
         cfg.translate_to_english = self.translate_switch.isChecked()
-        cfg.language_hotkey = self.language_hotkey_edit.text().strip()
+        cfg.language_hotkey = self.language_hotkey_edit.combo()
         cfg.preview_before_paste = self.preview_switch.isChecked()
         cfg.theme = self.theme_combo.currentData()
         cfg.accent = self.accent_combo.currentData()
@@ -699,7 +703,7 @@ class MainWindow(QWidget):
 
         cfg.save()
 
-        self.hotkey_badge.setText(self._pretty_hotkey(cfg.hotkey))
+        self.hotkey_badge.setText(hotkeys.pretty(cfg.hotkey))
         self.controller.reload(model_changed=False)
 
         self.save_button.setText("Сохранено ✓")

@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import autostart, models
+from .. import autostart, hotkeys, models
 from .. import engine as engine_states
 from ..config import Config
 from ..engine import Engine
@@ -40,7 +40,7 @@ def build_icon(recording: bool = False) -> QIcon:
 class SpeakMotApp:
     def __init__(self):
         self.qt = QApplication(sys.argv)
-        self.qt.setApplicationName("SpeakMot")
+        self.qt.setApplicationName("SpeakMotor")
         self.qt.setQuitOnLastWindowClosed(False)
 
         self.cfg = Config.load()
@@ -90,10 +90,10 @@ class SpeakMotApp:
 
     def _build_tray(self) -> None:
         self.tray = QSystemTrayIcon(build_icon(), self.qt)
-        self.tray.setToolTip("SpeakMot")
+        self.tray.setToolTip("SpeakMotor — диктовка")
 
         menu = QMenu()
-        open_action = QAction("Открыть SpeakMot", menu)
+        open_action = QAction("Открыть SpeakMotor", menu)
         open_action.triggered.connect(self.show_window)
         record_action = QAction("Начать / остановить запись", menu)
         record_action.triggered.connect(self.toggle_recording)
@@ -120,14 +120,14 @@ class SpeakMotApp:
         self.tray.setIcon(build_icon(state == engine_states.RECORDING))
 
         if state == engine_states.RECORDING:
-            self.overlay.show_recording(self.window._pretty_hotkey(self.cfg.hotkey))
+            self.overlay.show_recording(hotkeys.pretty(self.cfg.hotkey))
         elif state == engine_states.TRANSCRIBING:
             self.overlay.show_transcribing()
         elif state == engine_states.IDLE:
             self.overlay.show_done(message or "Готово")
         elif state == engine_states.ERROR:
             self.overlay.show_error(message or "Ошибка")
-            self.tray.showMessage("SpeakMot", message or "Ошибка", build_icon(), 4000)
+            self.tray.showMessage("SpeakMotor", message or "Ошибка", build_icon(), 4000)
             QTimer.singleShot(
                 3000, lambda: self.window.apply_state(engine_states.IDLE, "")
             )
