@@ -1,16 +1,16 @@
-; Установщик SpeakMot. Собирается через ISCC installer.iss после PyInstaller.
+; Установщик SpeakMotor. Собирается через ISCC installer.iss после PyInstaller.
 #define AppName "SpeakMotor"
 #define AppVersion "0.6.0"
 
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=SpeakMot
+AppPublisher=SpeakMotor
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=installer
-OutputBaseFilename=SpeakMot-setup-{#AppVersion}
+OutputBaseFilename=SpeakMotor-setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -24,11 +24,11 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Ярлыки:"
 
 [Files]
-Source: "dist\SpeakMot\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\SpeakMotor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\SpeakMot.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\SpeakMot.exe"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\SpeakMot.exe"; Description: "Запустить {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\SpeakMotor.exe"; Description: "Запустить {#AppName}"; Flags: nowait postinstall skipifsilent

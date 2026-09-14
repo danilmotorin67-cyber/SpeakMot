@@ -71,10 +71,10 @@ python main.py
 
 Каждый push собирает приложение на GitHub Actions.
 Откройте вкладку **Actions** → последний запуск **Build Windows exe** →
-блок **Artifacts** → `SpeakMot-windows`. Внутри два варианта:
+блок **Artifacts** → `SpeakMotor-windows`. Внутри два варианта:
 
-- `SpeakMot-setup-*.exe` — установщик, ставится без прав администратора;
-- `SpeakMot-windows.zip` — портативная версия, просто распаковать и запустить.
+- `SpeakMotor-setup-*.exe` — установщик, ставится без прав администратора;
+- `SpeakMotor-windows.zip` — портативная версия, просто распаковать и запустить.
 
 Установка Python не нужна. Windows SmartScreen предупредит о неизвестном
 издателе — сборка не подписана сертификатом.
@@ -93,7 +93,7 @@ pytest -q
 build.bat
 ```
 
-Результат — `dist\SpeakMot\SpeakMot.exe`.
+Результат — `dist\SpeakMotor\SpeakMotor.exe`.
 
 ## Настройки
 

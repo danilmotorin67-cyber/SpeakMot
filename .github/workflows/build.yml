@@ -50,7 +50,7 @@ jobs:
 
       - name: Build
         run: >
-          pyinstaller --noconfirm --onedir --windowed --name SpeakMot
+          pyinstaller --noconfirm --onedir --windowed --name SpeakMotor
           --collect-all faster_whisper
           --collect-all ctranslate2
           --collect-all tokenizers
@@ -63,7 +63,7 @@ jobs:
       - name: Check bundled imports
         run: |
           $report = "$PWD\selftest.txt"
-          $process = Start-Process -FilePath dist/SpeakMot/SpeakMot.exe `
+          $process = Start-Process -FilePath dist/SpeakMotor/SpeakMotor.exe `
             -ArgumentList "--selftest", $report -PassThru -Wait
           if (Test-Path $report) { Get-Content $report }
           if ($process.ExitCode -ne 0) {
@@ -73,10 +73,10 @@ jobs:
 
       - name: Smoke test
         run: |
-          $process = Start-Process -FilePath dist/SpeakMot/SpeakMot.exe -PassThru
+          $process = Start-Process -FilePath dist/SpeakMotor/SpeakMotor.exe -PassThru
           Start-Sleep -Seconds 25
           if ($process.HasExited) {
-            Write-Error "SpeakMot.exe завершился сразу, код $($process.ExitCode)"
+            Write-Error "SpeakMotor.exe завершился сразу, код $($process.ExitCode)"
             exit 1
           }
           Stop-Process -Id $process.Id -Force
@@ -88,13 +88,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Package portable build
-        run: Compress-Archive -Path dist/SpeakMot/* -DestinationPath SpeakMot-windows.zip
+        run: Compress-Archive -Path dist/SpeakMotor/* -DestinationPath SpeakMotor-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SpeakMot-windows
+          name: SpeakMotor-windows
           path: |
-            SpeakMot-windows.zip
+            SpeakMotor-windows.zip
             installer/*.exe
           retention-days: 30
 
@@ -103,5 +103,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            SpeakMot-windows.zip
+            SpeakMotor-windows.zip
             installer/*.exe
