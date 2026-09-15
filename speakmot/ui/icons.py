@@ -1,11 +1,12 @@
 """Иконки рисуются кодом: никаких файлов, любой цвет и размер."""
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 
 def _pen(color: str, width: float = 1.7) -> QPen:
-    pen = QPen(color)
+    # только QColor: строку принимают не все версии PySide6
+    pen = QPen(QColor(color))
     pen.setWidthF(width)
     pen.setCapStyle(Qt.RoundCap)
     pen.setJoinStyle(Qt.RoundJoin)
@@ -52,7 +53,7 @@ def _box(painter: QPainter, color: str) -> None:
 def _sliders(painter: QPainter, color: str) -> None:
     for y in (7.0, 12.0, 17.0):
         painter.drawLine(QPointF(4, y), QPointF(20, y))
-    painter.setBrush(color)
+    painter.setBrush(QColor(color))
     for x, y in ((9.0, 7.0), (15.0, 12.0), (7.5, 17.0)):
         painter.drawEllipse(QPointF(x, y), 2.4, 2.4)
     painter.setBrush(Qt.NoBrush)

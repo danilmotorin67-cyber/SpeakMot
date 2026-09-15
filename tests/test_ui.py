@@ -141,3 +141,13 @@ def test_state_changes_keep_the_window_paintable(window):
     for state in (states.IDLE, states.RECORDING, states.TRANSCRIBING, states.ERROR):
         window.apply_state(state, "проверка")
         assert not window.grab().isNull()
+
+
+def test_every_icon_draws(window):
+    """Иконки рисуются напрямую вызовами Qt, где типы аргументов строгие."""
+    from speakmot.ui import icons
+
+    for name in icons._ICONS:
+        pixmap = icons.icon(name, 18, "#8e97ab").pixmap(18, 18)
+        assert not pixmap.isNull()
+        assert pixmap.toImage().constBits() is not None
