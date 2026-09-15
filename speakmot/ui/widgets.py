@@ -14,17 +14,15 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
-    QFont,
     QLinearGradient,
     QPainter,
     QPen,
     QRadialGradient,
 )
 from PySide6.QtWidgets import (
-    QAbstractButton,
     QFrame,
-    QGraphicsDropShadowEffect,
     QLabel,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -38,11 +36,6 @@ class Card(QFrame):
     def __init__(self, title: str | None = None, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(26)
-        shadow.setColor(QColor(0, 0, 0, 46))
-        shadow.setOffset(0, 4)
-        self.setGraphicsEffect(shadow)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(18, 16, 18, 16)
         self._layout.setSpacing(10)
@@ -118,55 +111,29 @@ class ToggleSwitch(QWidget):
         painter.drawEllipse(QRectF(x, 3, 20, 20))
 
 
-class NavButton(QAbstractButton):
-    """Пункт бокового меню: иконка, подпись и полоска у активного."""
+class NavButton(QPushButton):
+    """Пункт бокового меню.
 
-    def __init__(self, label: str, icon: str, parent=None):
-        super().__init__(parent)
+    Раньше и значок, и подпись рисовались вручную в paintEvent — на Windows
+    подпись пропадала. Теперь это обычная кнопка: Qt рисует текст сам, а от
+    нас только готовая иконка.
+    """
+
+    def __init__(self, label: str, icon_name: str, parent=None):
+        super().__init__(label, parent)
+        self.setObjectName("navBtn")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(42)
-        self._label = label
-        self._icon = icon
-        self._hover = False
+        self.setIconSize(QSize(18, 18))
+        self._icon_name = icon_name
+        # группа снимает отметку с соседней кнопки из C++, минуя наши методы,
+        # поэтому слушаем сигнал, а не переопределяем setChecked
+        self.toggled.connect(lambda _checked: self.refresh_icon())
+        self.refresh_icon()
 
-    def enterEvent(self, event):
-        self._hover = True
-        self.update()
-
-    def leaveEvent(self, event):
-        self._hover = False
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        rect = QRectF(self.rect())
-
-        if self.isChecked():
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(theme.color("surface3")))
-            painter.drawRoundedRect(rect.adjusted(0, 1, 0, -1), 11, 11)
-            painter.setBrush(QColor(theme.color("accent")))
-            painter.drawRoundedRect(QRectF(0, rect.height() / 2 - 9, 3, 18), 2, 2)
-        elif self._hover:
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(theme.color("surface2")))
-            painter.drawRoundedRect(rect.adjusted(0, 1, 0, -1), 11, 11)
-
+    def refresh_icon(self) -> None:
         tint = theme.color("text") if self.isChecked() else theme.color("text_dim")
-        icons.draw(painter, self._icon, QRectF(14, rect.height() / 2 - 9, 18, 18), tint)
-
-        painter.setPen(QColor(tint))
-        font = painter.font()
-        font.setPointSizeF(10.5)
-        font.setWeight(QFont.Weight.DemiBold if self.isChecked() else QFont.Weight.Normal)
-        painter.setFont(font)
-        painter.drawText(
-            QRectF(42, 0, rect.width() - 50, rect.height()),
-            Qt.AlignVCenter | Qt.AlignLeft,
-            self._label,
-        )
+        self.setIcon(icons.icon(self._icon_name, 18, tint))
 
 
 class StatusDot(QWidget):
@@ -270,16 +237,7 @@ class MicButton(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
-        self._shadow = QGraphicsDropShadowEffect(self)
-        self._shadow.setBlurRadius(30)
-        self._shadow.setOffset(0, 8)
-        self.refresh_theme()
-        self.setGraphicsEffect(self._shadow)
-
     def refresh_theme(self) -> None:
-        glow = QColor(theme.color("accent"))
-        glow.setAlpha(70)
-        self._shadow.setColor(glow)
         self.update()
 
     def set_recording(self, recording: bool) -> None:

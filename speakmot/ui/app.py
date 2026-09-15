@@ -147,6 +147,7 @@ class SpeakMotApp:
         theme.apply(theme_name, accent)
         self.qt.setStyleSheet(theme.qss())
         self.window.mic_button.refresh_theme()
+        self.window.refresh_icons()
         self.tray.setIcon(build_icon(self.engine.state == engine_states.RECORDING))
 
     def _push_overlay_level(self) -> None:

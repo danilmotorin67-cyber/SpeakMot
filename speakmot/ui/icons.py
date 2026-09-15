@@ -1,7 +1,7 @@
 """Иконки рисуются кодом: никаких файлов, любой цвет и размер."""
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QPainter, QPainterPath, QPen
+from PySide6.QtGui import QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 
 def _pen(color: str, width: float = 1.7) -> QPen:
@@ -101,3 +101,17 @@ _ICONS = {
     "copy": _copy,
     "download": _download,
 }
+
+
+def icon(name: str, size: int, color: str) -> QIcon:
+    """Готовая иконка для обычной кнопки.
+
+    Рисовать иконки прямо в paintEvent оказалось ненадёжно на Windows,
+    поэтому отдаём готовое изображение, а текст рисует сам Qt.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    draw(painter, name, QRectF(0, 0, size, size), color)
+    painter.end()
+    return QIcon(pixmap)

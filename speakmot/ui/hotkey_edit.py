@@ -81,6 +81,12 @@ class HotkeyEdit(QPushButton):
         self.setChecked(False)
         self.changed.emit(combo)
 
+    def hideEvent(self, event):
+        # захваченная клавиатура при закрытии окна заблокировала бы ввод везде
+        if self.isChecked():
+            self.setChecked(False)
+        super().hideEvent(event)
+
     def focusOutEvent(self, event):
         if self.isChecked():
             self.setChecked(False)

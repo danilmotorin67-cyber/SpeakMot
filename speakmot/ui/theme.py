@@ -128,6 +128,24 @@ _TEMPLATE = """
     letter-spacing: 2.4px;
     font-weight: 700;
 }}
+#navBtn {{
+    background: transparent;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 10px;
+    padding: 10px 14px;
+    text-align: left;
+    color: {text_dim};
+    font-size: 14px;
+    font-weight: 500;
+}}
+#navBtn:hover {{ background: {surface2}; color: {text}; }}
+#navBtn:checked {{
+    background: {surface3};
+    border-left: 3px solid {accent};
+    color: {text};
+    font-weight: 700;
+}}
 #sidebarSection {{
     color: {text_faint};
     font-size: 10px;
@@ -154,6 +172,7 @@ _TEMPLATE = """
     border: 1px solid {border};
     border-radius: 14px;
 }}
+#card:hover {{ border-color: {border_hover}; }}
 #cardTitle {{
     font-size: 11px;
     font-weight: 700;

@@ -575,6 +575,11 @@ class MainWindow(QWidget):
             self.theme_combo.currentData(), self.accent_combo.currentData()
         )
 
+    def refresh_icons(self) -> None:
+        """Иконки меню нарисованы в цвет темы, после смены их надо перерисовать."""
+        for button in self.nav_group.buttons():
+            button.refresh_icon()
+
     def _go_to_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
