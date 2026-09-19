@@ -63,14 +63,14 @@ jobs:
           --collect-all huggingface_hub
           main.py
 
-      - name: Check bundled imports
+      - name: Self-check the built application
         run: |
           $report = "$PWD\selftest.txt"
           $process = Start-Process -FilePath dist/SpeakMotor/SpeakMotor.exe `
             -ArgumentList "--selftest", $report -PassThru -Wait
           if (Test-Path $report) { Get-Content $report }
           if ($process.ExitCode -ne 0) {
-            Write-Error "Собранное приложение не смогло импортировать зависимости"
+            Write-Error "Самопроверка собранного приложения не прошла — смотрите отчёт выше"
             exit 1
           }
 

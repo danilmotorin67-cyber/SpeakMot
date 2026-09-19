@@ -17,9 +17,16 @@ def launch_command() -> str:
 
 
 def _open_key(access):
+    """Открывает ветку автозапуска, создавая её при необходимости.
+
+    На чистом профиле ключа Run может не быть, и обычное открытие падает
+    с «файл не найден» — автозапуск тогда молча не включается.
+    """
     import winreg
 
-    return winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, access)
+    if access == winreg.KEY_READ:
+        return winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, access)
+    return winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, access)
 
 
 def is_enabled() -> bool:
