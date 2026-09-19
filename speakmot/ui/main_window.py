@@ -1,7 +1,7 @@
 import threading
 
 from PySide6.QtCore import QPoint, Qt, QTime, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QPainter
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -31,6 +31,7 @@ from .hotkey_edit import HotkeyEdit
 from .models_page import ModelsPage
 from .profiles_page import ProfilesPage
 from .widgets import (
+    BrandMark,
     Card,
     EmptyState,
     MicButton,
@@ -55,25 +56,6 @@ SILENCE_OPTIONS = {
 }
 
 
-class TrafficDot(QWidget):
-    """Точка-кружок в заголовке окна."""
-
-    def __init__(self, role: str, parent=None):
-        super().__init__(parent)
-        self._role = role
-        self.setFixedSize(9, 9)
-
-    def refresh_theme(self) -> None:
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(theme.color(self._role)))
-        painter.drawEllipse(self.rect())
-
-
 class TitleBar(QWidget):
     def __init__(self, window: "MainWindow"):
         super().__init__(window)
@@ -86,15 +68,6 @@ class TitleBar(QWidget):
         layout.setContentsMargins(14, 0, 10, 0)
         layout.setSpacing(6)
 
-        # три точки слева — как в окне терминала
-        dots = QHBoxLayout()
-        dots.setSpacing(7)
-        dots.setContentsMargins(0, 0, 0, 0)
-        self.dots = [TrafficDot(role) for role in ("danger", "accent", "dot")]
-        for dot in self.dots:
-            dots.addWidget(dot)
-        layout.addLayout(dots)
-        layout.addSpacing(10)
         layout.addStretch(1)
 
         self.caption = QLabel(tr("Запись"))
@@ -103,19 +76,40 @@ class TitleBar(QWidget):
         layout.addWidget(self.caption)
         layout.addStretch(1)
 
+        self.maximize_button = None
         for text, name, slot in (
             ("—", "winBtn", window.showMinimized),
+            ("□", "winBtn", self.toggle_maximized),
             ("✕", "winBtnClose", window.hide),
         ):
             button = QPushButton(text)
-            button.setObjectName(name if name == "winBtnClose" else "winBtn")
-            if name == "winBtnClose":
-                button.setProperty("class", "close")
-                button.setObjectName("winBtnClose")
+            button.setObjectName(name)
             button.setFixedSize(32, 30)
             button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(slot)
             layout.addWidget(button)
+            if slot == self.toggle_maximized:
+                self.maximize_button = button
+                button.setToolTip(tr("Развернуть на весь экран"))
+
+    def toggle_maximized(self) -> None:
+        """Разворачивает окно на весь экран и возвращает обратно."""
+        window = self._window
+        if window.isMaximized():
+            window.showNormal()
+        else:
+            window.showMaximized()
+        self.sync_maximize_button()
+
+    def sync_maximize_button(self) -> None:
+        maximized = self._window.isMaximized()
+        self.maximize_button.setText("❐" if maximized else "□")
+        self.maximize_button.setToolTip(
+            tr("Вернуть прежний размер") if maximized else tr("Развернуть на весь экран")
+        )
+
+    def mouseDoubleClickEvent(self, event):
+        self.toggle_maximized()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -226,11 +220,10 @@ class MainWindow(QWidget):
         layout.setContentsMargins(16, 8, 16, 16)
         layout.setSpacing(6)
 
-        brand = QLabel("SpeakMotor")
-        brand.setObjectName("brand")
+        self.brand_mark = BrandMark("SPEAKMOTOR")
         subtitle = QLabel(tr("ДИКТОВКА"))
         subtitle.setObjectName("brandSub")
-        layout.addWidget(brand)
+        layout.addWidget(self.brand_mark)
         layout.addWidget(subtitle)
         layout.addSpacing(26)
 
@@ -753,12 +746,17 @@ class MainWindow(QWidget):
         self.tile_count.set_value(f"{int(stats.get('count', 0))}")
         self.tile_minutes.set_value(f"{stats.get('seconds', 0) / 60:.0f}")
 
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        # событие приходит и во время сборки окна, когда панели ещё нет
+        if getattr(self, "title_bar", None) is not None:
+            self.title_bar.sync_maximize_button()
+
     def refresh_icons(self) -> None:
         """Иконки меню нарисованы в цвет темы, после смены их надо перерисовать."""
         for button in self.nav_group.buttons():
             button.refresh_icon()
-        for dot in self.title_bar.dots:
-            dot.refresh_theme()
+        self.brand_mark.refresh_theme()
 
     def _go_to_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)

@@ -14,7 +14,10 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
+    QFont,
+    QFontMetricsF,
     QPainter,
+    QPainterPath,
     QPen,
 )
 from PySide6.QtWidgets import (
@@ -22,11 +25,14 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from . import icons, theme
+
+FONT_FAMILIES = [name.strip() for name in theme.FONT.split(",")]
 
 
 class Card(QFrame):
@@ -110,6 +116,53 @@ class ToggleSwitch(QWidget):
         margin, knob = 3.0, self.height() - 6.0
         travel = self.width() - knob - 2 * margin
         painter.drawEllipse(QRectF(margin + self._offset * travel, margin, knob, knob))
+
+
+class BrandMark(QWidget):
+    """Название программы контурными буквами — как на трафарете.
+
+    Обычная подпись в таком начертании выглядела бы плоско: буквы рисуются
+    контуром по акцентному цвету, без заливки.
+    """
+
+    def __init__(self, text: str = "SPEAKMOTOR", parent=None):
+        super().__init__(parent)
+        self._text = text
+        self._font = QFont(FONT_FAMILIES[0])
+        self._font.setPixelSize(25)
+        self._font.setWeight(QFont.Weight.Bold)
+        self._font.setLetterSpacing(QFont.AbsoluteSpacing, 2.0)
+        self.setMinimumHeight(34)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+    def refresh_theme(self) -> None:
+        self.update()
+
+    def _path(self) -> QPainterPath:
+        path = QPainterPath()
+        metrics = QFontMetricsF(self._font)
+        path.addText(0.0, metrics.ascent(), self._font, self._text)
+        return path
+
+    # буквы сжимаем по ширине и вытягиваем вверх — трафаретное начертание
+    SQUEEZE, STRETCH = 0.82, 1.18
+
+    def sizeHint(self) -> QSize:
+        rect = self._path().boundingRect()
+        return QSize(int(rect.width() * self.SQUEEZE) + 6, 34)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = self._path()
+        rect = path.boundingRect()
+        height = rect.height() * self.STRETCH
+        painter.translate(1.5, (self.height() - height) / 2)
+        painter.scale(self.SQUEEZE, self.STRETCH)
+        painter.translate(-rect.left(), -rect.top())
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(theme.color("accent")), 1.2 / self.STRETCH))
+        painter.drawPath(path)
 
 
 class QuietComboBox(QComboBox):

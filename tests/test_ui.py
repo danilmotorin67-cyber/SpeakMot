@@ -223,7 +223,7 @@ def test_status_bar_follows_state(window):
     window.apply_state(engine_states.RECORDING, "")
     assert window.status_bar_text.text() == "слушаю"
     assert len(window.clock.text()) == 8
-    assert len(window.title_bar.dots) == 3
+    assert window.title_bar.maximize_button is not None
 
 
 def test_icon_file_is_shipped_and_multisize():
