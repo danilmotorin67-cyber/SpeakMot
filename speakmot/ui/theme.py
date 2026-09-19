@@ -356,6 +356,31 @@ QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
     font-size: 10px;
     letter-spacing: 1px;
 }}
+/* --- меню (в том числе в трее) --- */
+QMenu {{
+    background: {surface};
+    border: 1px solid {border_hover};
+    border-radius: 6px;
+    padding: 6px;
+    color: {accent};
+}}
+QMenu::item {{
+    background: transparent;
+    color: {accent};
+    padding: 7px 18px;
+    border-radius: 4px;
+}}
+QMenu::item:selected {{
+    background: {accent};
+    color: {on_accent};
+}}
+QMenu::item:disabled {{ color: {text_faint}; }}
+QMenu::separator {{
+    height: 1px;
+    background: {border};
+    margin: 5px 8px;
+}}
+
 QToolTip {{
     background: {surface3};
     color: {text};

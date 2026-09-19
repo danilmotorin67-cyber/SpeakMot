@@ -245,3 +245,14 @@ def test_app_icon_never_empty(window):
     icon = branding.app_icon()
     assert not icon.isNull()
     assert not branding.mark_pixmap(16).isNull()
+
+
+def test_tray_menu_is_themed(window):
+    """Без своих правил меню трея рисуется системным: серое по белому."""
+    from speakmot.ui import theme
+
+    style = theme.qss()
+    assert "QMenu {" in style
+    assert "QMenu::item:selected" in style
+    for block in style.split("QMenu")[1:3]:
+        assert theme.color("accent") in block.split("}")[0]
