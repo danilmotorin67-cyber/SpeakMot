@@ -422,4 +422,4 @@ class MicButton(QWidget):
             painter.setBrush(QColor(ink))
             painter.drawRect(QRectF(cx - 10, cy - 10, 20, 20))
         else:
-            icons.draw(painter, "mic", QRectF(cx - 23, cy - 23, 46, 46), ink)
+            icons.draw(painter, "mic", QRectF(cx - 27, cy - 27, 54, 54), ink)

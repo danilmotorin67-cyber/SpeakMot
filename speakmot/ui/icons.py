@@ -29,12 +29,18 @@ def draw(painter: QPainter, name: str, rect: QRectF, color: str) -> None:
 
 
 def _microphone(painter: QPainter, color: str) -> None:
-    painter.drawRoundedRect(QRectF(9, 3, 6, 11), 3, 3)
+    """Капсула, дужка под ней и подставка.
+
+    Раньше ножка начиналась выше нижней точки дужки и торчала сквозь неё.
+    """
+    painter.drawRoundedRect(QRectF(9, 3.5, 6, 10.5), 3, 3)
+    cradle = QRectF(5.5, 8, 13, 11.5)
     path = QPainterPath()
-    path.arcMoveTo(QRectF(5, 8, 14, 12), 200)
-    path.arcTo(QRectF(5, 8, 14, 12), 200, 140)
+    path.arcMoveTo(cradle, 190)
+    path.arcTo(cradle, 190, 160)
     painter.drawPath(path)
-    painter.drawLine(QPointF(12, 18), QPointF(12, 21))
+    painter.drawLine(QPointF(12, 19.5), QPointF(12, 21.25))
+    painter.drawLine(QPointF(8.5, 21.25), QPointF(15.5, 21.25))
 
 
 def _clock(painter: QPainter, color: str) -> None:
