@@ -18,6 +18,7 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QLabel,
     QPushButton,
@@ -105,8 +106,21 @@ class ToggleSwitch(QWidget):
 
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor("#ffffff"))
-        x = 3 + self._offset * (self.width() - 23)
-        painter.drawEllipse(QRectF(x, 3, 20, 20))
+        # поля слева и справа одинаковые, иначе шарик «выпадает» из дорожки
+        margin, knob = 3.0, self.height() - 6.0
+        travel = self.width() - knob - 2 * margin
+        painter.drawEllipse(QRectF(margin + self._offset * travel, margin, knob, knob))
+
+
+class QuietComboBox(QComboBox):
+    """Список, который не переключается колесом мыши.
+
+    Прокрутка страницы над таким полем меняла настройку незаметно для
+    человека — значение меняется только щелчком по самому списку.
+    """
+
+    def wheelEvent(self, event):
+        event.ignore()
 
 
 class NavButton(QPushButton):

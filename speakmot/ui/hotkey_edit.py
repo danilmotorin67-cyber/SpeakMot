@@ -3,6 +3,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QPushButton
 
 from .. import hotkeys
+from ..i18n import tr
 
 MODIFIER_KEYS = {Qt.Key_Control, Qt.Key_Alt, Qt.Key_Shift, Qt.Key_Meta, Qt.Key_AltGr}
 
@@ -37,7 +38,7 @@ class HotkeyEdit(QPushButton):
 
     def _render(self) -> None:
         if self.isChecked():
-            self.setText("Нажмите сочетание…")
+            self.setText(tr("Нажмите сочетание…"))
         else:
             self.setText(hotkeys.pretty(self._combo))
 
@@ -74,7 +75,7 @@ class HotkeyEdit(QPushButton):
 
         combo = hotkeys.build(modifiers, QKeySequence(key).toString())
         if not combo:
-            self.setText("Нужен модификатор и клавиша")
+            self.setText(tr("Нужен модификатор и клавиша"))
             return
 
         self._combo = combo

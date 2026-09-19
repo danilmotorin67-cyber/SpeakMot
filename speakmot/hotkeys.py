@@ -1,5 +1,7 @@
 """Сборка названия горячей клавиши из того, что нажал пользователь."""
 
+from .i18n import tr
+
 MODIFIER_ORDER = ["ctrl", "alt", "shift", "windows"]
 
 # Qt называет клавиши по-своему, библиотека перехвата — иначе.
@@ -51,5 +53,5 @@ def build(modifiers, key: str) -> str:
 def pretty(combo: str) -> str:
     """Человеческий вид комбинации для показа в интерфейсе."""
     if not combo:
-        return "не назначена"
+        return tr("не назначена")
     return " + ".join(part.strip().title() for part in combo.split("+") if part.strip())

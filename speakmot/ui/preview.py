@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import tr
+
 
 class PreviewWindow(QWidget):
     """Показывает распознанный текст до вставки: можно поправить или отклонить."""
@@ -33,7 +35,7 @@ class PreviewWindow(QWidget):
         layout.setContentsMargins(18, 14, 18, 14)
         layout.setSpacing(10)
 
-        header = QLabel("РАСПОЗНАНО")
+        header = QLabel(tr("РАСПОЗНАНО"))
         header.setObjectName("previewTitle")
         layout.addWidget(header)
 
@@ -45,18 +47,18 @@ class PreviewWindow(QWidget):
 
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
-        hint = QLabel("Enter — вставить · Esc — отменить")
+        hint = QLabel(tr("Enter — вставить · Esc — отменить"))
         hint.setObjectName("overlayHint")
         buttons.addWidget(hint)
         buttons.addStretch(1)
 
-        cancel = QPushButton("Отменить")
+        cancel = QPushButton(tr("Отменить"))
         cancel.setObjectName("ghost")
         cancel.setCursor(Qt.PointingHandCursor)
         cancel.clicked.connect(self._reject)
         buttons.addWidget(cancel)
 
-        insert = QPushButton("Вставить")
+        insert = QPushButton(tr("Вставить"))
         insert.setObjectName("primary")
         insert.setCursor(Qt.PointingHandCursor)
         insert.clicked.connect(self._accept)

@@ -22,6 +22,7 @@ class Config:
     sound_feedback: bool = True
     autostart: bool = False
     theme: str = "dark"  # "dark" | "light"
+    ui_language: str = "ru"  # язык интерфейса: "ru" | "en"
     accent: str = "#e2603c"
     voice_commands: bool = True
     translate_to_english: bool = False

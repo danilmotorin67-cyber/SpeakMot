@@ -256,3 +256,106 @@ def test_tray_menu_is_themed(window):
     assert "QMenu::item:selected" in style
     for block in style.split("QMenu")[1:3]:
         assert theme.color("accent") in block.split("}")[0]
+
+
+def test_combo_boxes_ignore_the_wheel(window):
+    """Прокрутка страницы не должна незаметно менять настройку."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+
+    from speakmot.ui.widgets import QuietComboBox
+
+    combos = window.findChildren(__import__("PySide6.QtWidgets", fromlist=["QComboBox"]).QComboBox)
+    assert combos
+    for combo in combos:
+        assert isinstance(combo, QuietComboBox), combo.objectName()
+
+    combo = window.lang_combo
+    combo.setCurrentIndex(0)
+    event = QWheelEvent(
+        QPointF(10, 10),
+        QPointF(10, 10),
+        QPoint(0, 0),
+        QPoint(0, -120),
+        Qt.NoButton,
+        Qt.NoModifier,
+        Qt.NoScrollPhase,
+        False,
+    )
+    combo.wheelEvent(event)
+    assert combo.currentIndex() == 0
+
+
+def test_toggle_knob_stays_inside_track(window):
+    """Белый шарик не должен упираться в правый край дорожки."""
+    from speakmot.ui.widgets import ToggleSwitch
+
+    toggle = ToggleSwitch(checked=True)
+    margin, knob = 3.0, toggle.height() - 6.0
+    travel = toggle.width() - knob - 2 * margin
+    assert travel > 0
+    assert margin + travel + knob == toggle.width() - margin
+
+
+def _tr_literals() -> set[str]:
+    import ast
+    import pathlib
+
+    found: set[str] = set()
+    for path in pathlib.Path("speakmot").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "tr"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                found.add(node.args[0].value)
+    return found
+
+
+def test_every_interface_string_has_a_translation():
+    """Пропущенный перевод оставил бы в английском интерфейсе русское слово."""
+    from speakmot import i18n
+
+    missing = sorted(_tr_literals() - set(i18n.EN))
+    assert not missing, missing
+
+
+def test_label_dictionaries_are_translated():
+    """Значения выпадающих списков тоже должны переводиться."""
+    from speakmot import i18n, models
+    from speakmot.ui import main_window, profiles_page, theme
+
+    labels = set(main_window.LANGUAGES) | set(main_window.MODES)
+    labels |= set(main_window.PASTE_METHODS) | set(main_window.THEMES)
+    labels |= set(main_window.SILENCE_OPTIONS) | set(theme.ACCENTS)
+    labels |= set(profiles_page.LANGUAGES) | set(profiles_page.COMMANDS)
+    labels |= set(profiles_page.METHODS) | set(models.DESCRIPTIONS.values())
+    labels -= {"English"}
+    missing = sorted(label for label in labels if label not in i18n.EN)
+    assert not missing, missing
+
+
+def test_settings_are_saved_by_value_not_by_label(window):
+    """Списки подписаны переводами, поэтому искать по тексту больше нельзя."""
+    from speakmot import i18n
+
+    try:
+        i18n.set_language("en")
+        window.mode_combo.setCurrentIndex(window.mode_combo.findData("hold"))
+        window.lang_combo.setCurrentIndex(window.lang_combo.findData("en"))
+        window._save_settings()
+        assert window.cfg.hotkey_mode == "hold"
+        assert window.cfg.language == "en"
+    finally:
+        i18n.set_language("ru")
+
+
+def test_english_voice_commands():
+    from speakmot.voice_commands import apply_commands
+
+    assert apply_commands("hello comma world full stop") == "Hello, world."
+    assert apply_commands("привет запятая мир точка") == "Привет, мир."

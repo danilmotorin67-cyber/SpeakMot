@@ -12,8 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import tr
 from ..profiles import INHERIT, Profile
-from .widgets import Card, EmptyState
+from .widgets import Card, EmptyState, QuietComboBox
 
 LANGUAGES = {
     "как в настройках": INHERIT,
@@ -40,10 +41,10 @@ class ProfileCard(Card):
         top = QHBoxLayout()
         top.setSpacing(10)
         self.match_edit = QLineEdit(profile.match)
-        self.match_edit.setPlaceholderText("code.exe или часть заголовка окна")
+        self.match_edit.setPlaceholderText(tr("code.exe или часть заголовка окна"))
         top.addWidget(self.match_edit, 1)
 
-        remove = QPushButton("Удалить")
+        remove = QPushButton(tr("Удалить"))
         remove.setObjectName("danger")
         remove.setCursor(Qt.PointingHandCursor)
         remove.clicked.connect(lambda: page.remove_card(self))
@@ -53,11 +54,11 @@ class ProfileCard(Card):
 
         options = QHBoxLayout()
         options.setSpacing(10)
-        self.language_combo = self._combo(LANGUAGES, profile.language, "Язык", options)
+        self.language_combo = self._combo(LANGUAGES, profile.language, tr("Язык"), options)
         self.commands_combo = self._combo(
-            COMMANDS, profile.voice_commands, "Команды", options
+            COMMANDS, profile.voice_commands, tr("Команды"), options
         )
-        self.method_combo = self._combo(METHODS, profile.paste_method, "Вставка", options)
+        self.method_combo = self._combo(METHODS, profile.paste_method, tr("Вставка"), options)
         self.body().addLayout(options)
 
     def _combo(self, mapping, value, label, parent_layout) -> QComboBox:
@@ -65,9 +66,9 @@ class ProfileCard(Card):
         column.setSpacing(3)
         caption = QLabel(label)
         caption.setObjectName("settingDesc")
-        combo = QComboBox()
+        combo = QuietComboBox()
         for text, data in mapping.items():
-            combo.addItem(text, data)
+            combo.addItem(tr(text), data)
         combo.setCurrentIndex(max(0, combo.findData(value)))
         column.addWidget(caption)
         column.addWidget(combo)
@@ -96,18 +97,18 @@ class ProfilesPage(QWidget):
         layout.setSpacing(14)
 
         header = QHBoxLayout()
-        title = QLabel("Профили")
+        title = QLabel(tr("Профили"))
         title.setObjectName("pageTitle")
         header.addWidget(title)
         header.addStretch(1)
 
-        add = QPushButton("Добавить")
+        add = QPushButton(tr("Добавить"))
         add.setObjectName("ghost")
         add.setCursor(Qt.PointingHandCursor)
         add.clicked.connect(lambda: self.add_card(Profile()))
         header.addWidget(add)
 
-        save = QPushButton("Сохранить")
+        save = QPushButton(tr("Сохранить"))
         save.setObjectName("primary")
         save.setCursor(Qt.PointingHandCursor)
         save.clicked.connect(self.save)
@@ -115,8 +116,8 @@ class ProfilesPage(QWidget):
         layout.addLayout(header)
 
         self.hint = QLabel(
-            "Профиль срабатывает, когда его строка встречается в имени программы "
-            "или в заголовке активного окна. Первый подошедший профиль и применяется."
+            tr("Профиль срабатывает, когда его строка встречается в имени программы "
+            "или в заголовке активного окна. Первый подошедший профиль и применяется.")
         )
         self.hint.setObjectName("pageHint")
         self.hint.setWordWrap(True)
@@ -137,8 +138,8 @@ class ProfilesPage(QWidget):
 
         self.empty = EmptyState(
             "sliders",
-            "Профилей пока нет",
-            "Добавьте профиль, чтобы у отдельной программы были свои настройки.",
+            tr("Профилей пока нет"),
+            tr("Добавьте профиль, чтобы у отдельной программы были свои настройки."),
         )
         layout.addWidget(self.empty, 1)
 
@@ -168,4 +169,4 @@ class ProfilesPage(QWidget):
         profiles = [card.to_profile() for card in self.cards]
         self.cfg.profiles = [p.to_dict() for p in profiles if p.match]
         self.cfg.save()
-        self.hint.setText(f"Сохранено профилей: {len(self.cfg.profiles)}")
+        self.hint.setText(tr("Сохранено профилей: ") + str(len(self.cfg.profiles)))

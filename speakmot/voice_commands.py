@@ -20,10 +20,29 @@ PUNCTUATION = {
     "дефис": "-",
     "тире": "—",
     "процент": "%",
+    # то же самое по-английски — распознавание умеет оба языка
+    "new paragraph": "\n\n",
+    "new line": "\n",
+    "question mark": "?",
+    "exclamation mark": "!",
+    "exclamation point": "!",
+    "open bracket": "(",
+    "close bracket": ")",
+    "open quote": "\u201c",
+    "close quote": "\u201d",
+    "ellipsis": "…",
+    "semicolon": ";",
+    "colon": ":",
+    "full stop": ".",
+    "period": ".",
+    "comma": ",",
+    "hyphen": "-",
+    "dash": "—",
+    "percent sign": "%",
 }
 
-NO_SPACE_BEFORE = set(".,!?:;%…»)")
-OPENING = set("(«")
+NO_SPACE_BEFORE = set(".,!?:;%…»)\u201d")
+OPENING = set("(«\u201c")
 SENTENCE_END = set(".!?…")
 
 

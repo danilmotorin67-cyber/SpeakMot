@@ -5,10 +5,11 @@ from PySide6.QtCore import QObject, QTimer, QtMsgType, Signal, qInstallMessageHa
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import autostart, branding, hotkeys, models
+from .. import autostart, branding, hotkeys, i18n, models
 from .. import engine as engine_states
 from ..config import Config
 from ..engine import Engine
+from ..i18n import tr
 from . import theme
 from .main_window import MainWindow, center_on_screen
 from .overlay import RecordingOverlay
@@ -56,6 +57,7 @@ class SpeakMotApp:
         self.qt.setQuitOnLastWindowClosed(False)
 
         self.cfg = Config.load()
+        i18n.set_language(self.cfg.ui_language)
         theme.apply(self.cfg.theme, self.cfg.accent)
         self.qt.setStyleSheet(theme.qss())
         self.bridge = Bridge()
@@ -106,24 +108,29 @@ class SpeakMotApp:
 
     def _build_tray(self) -> None:
         self.tray = QSystemTrayIcon(build_icon(), self.qt)
-        self.tray.setToolTip("SpeakMotor — диктовка")
+        self.tray.setToolTip(tr("SpeakMotor — диктовка"))
 
-        menu = QMenu()
-        open_action = QAction("Открыть SpeakMotor", menu)
+        self.tray_menu = QMenu()
+        self.tray.setContextMenu(self.tray_menu)
+        self._build_tray_actions()
+        self.tray.activated.connect(self._on_tray_activated)
+        self.tray.show()
+
+    def _build_tray_actions(self) -> None:
+        """Пункты меню собираются заново при смене языка."""
+        menu = self.tray_menu
+        menu.clear()
+        open_action = QAction(tr("Открыть SpeakMotor"), menu)
         open_action.triggered.connect(self.show_window)
-        record_action = QAction("Начать / остановить запись", menu)
+        record_action = QAction(tr("Начать / остановить запись"), menu)
         record_action.triggered.connect(self.toggle_recording)
-        quit_action = QAction("Выход", menu)
+        quit_action = QAction(tr("Выход"), menu)
         quit_action.triggered.connect(self.quit)
 
         menu.addAction(open_action)
         menu.addAction(record_action)
         menu.addSeparator()
         menu.addAction(quit_action)
-
-        self.tray.setContextMenu(menu)
-        self.tray.activated.connect(self._on_tray_activated)
-        self.tray.show()
 
     def _on_tray_activated(self, reason) -> None:
         if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
@@ -140,10 +147,10 @@ class SpeakMotApp:
         elif state == engine_states.TRANSCRIBING:
             self.overlay.show_transcribing()
         elif state == engine_states.IDLE:
-            self.overlay.show_done(message or "Готово")
+            self.overlay.show_done(message or tr("Готово"))
         elif state == engine_states.ERROR:
-            self.overlay.show_error(message or "Ошибка")
-            self.tray.showMessage("SpeakMotor", message or "Ошибка", build_icon(), 4000)
+            self.overlay.show_error(message or tr("Ошибка"))
+            self.tray.showMessage("SpeakMotor", message or tr("Ошибка"), build_icon(), 4000)
             QTimer.singleShot(
                 3000, lambda: self.window.apply_state(engine_states.IDLE, "")
             )
@@ -157,6 +164,27 @@ class SpeakMotApp:
     def _on_preview_accepted(self, text: str) -> None:
         self.overlay.hide()
         self.engine.deliver(text, restore_focus=True)
+
+    def apply_ui_language(self, code: str) -> None:
+        """Пересобирает окно и меню трея на другом языке."""
+        i18n.set_language(code)
+        page = self.window.pages.currentIndex()
+        geometry = self.window.geometry()
+        visible = self.window.isVisible()
+        old = self.window
+
+        self.window = MainWindow(self)
+        self.window.setWindowIcon(self.app_icon)
+        self.window.setGeometry(geometry)
+        self.window.show_model(self.cfg.model_size)
+        self.window._go_to_page(page)
+        old.hide()
+        old.deleteLater()
+        if visible:
+            self.window.show()
+
+        self.tray.setToolTip(tr("SpeakMotor — диктовка"))
+        self._build_tray_actions()
 
     def apply_appearance(self, theme_name: str, accent: str) -> None:
         """Перекрашивает интерфейс на лету."""
@@ -202,6 +230,6 @@ class SpeakMotApp:
             # первый запуск: сразу показываем, что модель надо установить
             self.window._go_to_page(2)
             self.window.models_page.report(
-                "Модель ещё не установлена. Выберите её и нажмите «Установить»."
+                tr("Модель ещё не установлена. Выберите её и нажмите «Установить».")
             )
         return self.qt.exec()

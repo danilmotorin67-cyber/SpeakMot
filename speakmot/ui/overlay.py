@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from ..i18n import tr
 from .widgets import Waveform
 
 
@@ -36,9 +37,9 @@ class RecordingOverlay(QWidget):
 
         text_column = QVBoxLayout()
         text_column.setSpacing(1)
-        self.title = QLabel("Слушаю…")
+        self.title = QLabel(tr("Слушаю…"))
         self.title.setObjectName("overlayText")
-        self.hint = QLabel("нажмите горячую клавишу ещё раз")
+        self.hint = QLabel(tr("нажмите горячую клавишу ещё раз"))
         self.hint.setObjectName("overlayHint")
         text_column.addWidget(self.title)
         text_column.addWidget(self.hint)
@@ -61,8 +62,8 @@ class RecordingOverlay(QWidget):
 
     def show_recording(self, hotkey: str) -> None:
         self._hide_timer.stop()
-        self.title.setText("Слушаю…")
-        self.hint.setText(f"{hotkey} — стоп")
+        self.title.setText(tr("Слушаю…"))
+        self.hint.setText(hotkey + tr(" — стоп"))
         self.waveform.set_active(True)
         self._reposition()
         self.show()
@@ -70,19 +71,19 @@ class RecordingOverlay(QWidget):
     def show_partial(self, text: str) -> None:
         """Текст, распознанный по ходу речи, — он ещё может измениться."""
         self.title.setText(text[-70:] if len(text) > 70 else text)
-        self.hint.setText("слушаю дальше…")
+        self.hint.setText(tr("слушаю дальше…"))
 
     def show_transcribing(self) -> None:
         self._hide_timer.stop()
-        self.title.setText("Распознаю…")
-        self.hint.setText("почти готово")
+        self.title.setText(tr("Распознаю…"))
+        self.hint.setText(tr("почти готово"))
         self.waveform.set_active(False)
         self._reposition()
         self.show()
 
     def show_done(self, message: str) -> None:
         self.title.setText(message)
-        self.hint.setText("текст вставлен")
+        self.hint.setText(tr("текст вставлен"))
         self.waveform.set_active(False)
         self._hide_timer.start(1400)
 

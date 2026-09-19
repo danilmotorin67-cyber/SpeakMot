@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import models
+from ..i18n import tr
 from .widgets import Card
 
 
@@ -27,8 +28,8 @@ def restyle(widget: QWidget, name: str) -> None:
 def human_size(size_bytes: int) -> str:
     gigabytes = size_bytes / 1_000_000_000
     if gigabytes >= 1:
-        return f"{gigabytes:.1f} ГБ"
-    return f"{size_bytes / 1_000_000:.0f} МБ"
+        return f"{gigabytes:.1f}{tr(' ГБ')}"
+    return f"{size_bytes / 1_000_000:.0f}{tr(' МБ')}"
 
 
 class ModelCard(Card):
@@ -51,7 +52,7 @@ class ModelCard(Card):
         name = QLabel(size)
         name.setObjectName("settingLabel")
         description = QLabel(
-            f"{models.DESCRIPTIONS[size]} · {human_size(models.FALLBACK_BYTES[size])}"
+            f"{tr(models.DESCRIPTIONS[size])} · {human_size(models.FALLBACK_BYTES[size])}"
         )
         description.setObjectName("settingDesc")
         description.setWordWrap(True)
@@ -65,7 +66,7 @@ class ModelCard(Card):
         self.status.setFixedWidth(128)
         header.addWidget(self.status)
 
-        self.use_button = QPushButton("Выбрать")
+        self.use_button = QPushButton(tr("Выбрать"))
         self.use_button.setObjectName("ghost")
         self.use_button.setCursor(Qt.PointingHandCursor)
         self.use_button.clicked.connect(self._use)
@@ -99,14 +100,14 @@ class ModelCard(Card):
         active = self.page.cfg.model_size == self.size
 
         if active and installed:
-            self.status.setText("используется")
+            self.status.setText(tr("используется"))
         elif installed:
-            self.status.setText("установлена")
+            self.status.setText(tr("установлена"))
         else:
-            self.status.setText("не установлена")
+            self.status.setText(tr("не установлена"))
 
         self.use_button.setVisible(installed and not active)
-        self.action_button.setText("Удалить" if installed else "Установить")
+        self.action_button.setText(tr("Удалить") if installed else tr("Установить"))
         restyle(self.action_button, "ghost" if installed else "primary")
         self.action_button.setEnabled(not self._busy and not (installed and active))
         self.setEnabled(True)
@@ -126,7 +127,7 @@ class ModelCard(Card):
     def _start_download(self) -> None:
         self._busy = True
         self.action_button.setEnabled(False)
-        self.action_button.setText("Загрузка…")
+        self.action_button.setText(tr("Загрузка…"))
         self.progress.setValue(0)
         self.progress.show()
 
@@ -147,9 +148,9 @@ class ModelCard(Card):
         self._busy = False
         self.progress.hide()
         if error:
-            self.page.report(f"Не удалось скачать {self.size}: {error}")
+            self.page.report(tr("Не удалось скачать ") + f"{self.size}: {error}")
         else:
-            self.page.report(f"Модель {self.size} установлена")
+            self.page.report(tr("Модель ") + self.size + tr(" установлена"))
             if not models.is_installed(self.page.cfg.model_size):
                 self.page.select_model(self.size)
         self.page.refresh_all()
@@ -167,13 +168,13 @@ class ModelsPage(QWidget):
         layout.setContentsMargins(30, 24, 30, 26)
         layout.setSpacing(14)
 
-        title = QLabel("Модели")
+        title = QLabel(tr("Модели"))
         title.setObjectName("pageTitle")
         layout.addWidget(title)
 
         self.hint = QLabel(
-            "Модели скачиваются один раз и работают офлайн. "
-            "Чем крупнее модель, тем точнее распознавание и тем медленнее оно идёт."
+            tr("Модели скачиваются один раз и работают офлайн. "
+            "Чем крупнее модель, тем точнее распознавание и тем медленнее оно идёт.")
         )
         self.hint.setObjectName("pageHint")
         self.hint.setWordWrap(True)

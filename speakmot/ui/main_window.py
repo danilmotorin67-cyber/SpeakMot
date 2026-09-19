@@ -20,9 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, autostart, hotkeys, journal, updater
+from .. import __version__, autostart, hotkeys, i18n, journal, updater
 from .. import engine as engine_states
 from ..audio import list_input_devices
+from ..i18n import tr
 from ..output import copy_text
 from ..textproc import format_replacements, parse_replacements
 from . import theme
@@ -34,6 +35,7 @@ from .widgets import (
     EmptyState,
     MicButton,
     NavButton,
+    QuietComboBox,
     StatTile,
     StatusDot,
     ToggleSwitch,
@@ -95,7 +97,7 @@ class TitleBar(QWidget):
         layout.addSpacing(10)
         layout.addStretch(1)
 
-        self.caption = QLabel("Запись")
+        self.caption = QLabel(tr("Запись"))
         self.caption.setObjectName("titleLabel")
         self.caption.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.caption)
@@ -197,7 +199,7 @@ class MainWindow(QWidget):
         layout.setContentsMargins(18, 0, 18, 0)
         layout.setSpacing(10)
 
-        self.status_bar_text = QLabel("готов")
+        self.status_bar_text = QLabel(tr("готов"))
         self.status_bar_text.setObjectName("statusBarText")
         layout.addWidget(self.status_bar_text)
         layout.addStretch(1)
@@ -226,13 +228,13 @@ class MainWindow(QWidget):
 
         brand = QLabel("SpeakMotor")
         brand.setObjectName("brand")
-        subtitle = QLabel("ДИКТОВКА")
+        subtitle = QLabel(tr("ДИКТОВКА"))
         subtitle.setObjectName("brandSub")
         layout.addWidget(brand)
         layout.addWidget(subtitle)
         layout.addSpacing(26)
 
-        section = QLabel("РАЗДЕЛЫ")
+        section = QLabel(tr("РАЗДЕЛЫ"))
         section.setObjectName("sidebarSection")
         layout.addWidget(section)
         layout.addSpacing(6)
@@ -240,11 +242,11 @@ class MainWindow(QWidget):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         nav_items = (
-            ("Запись", "mic"),
-            ("История", "clock"),
-            ("Модели", "box"),
-            ("Профили", "sliders"),
-            ("Настройки", "gear"),
+            (tr("Запись"), "mic"),
+            (tr("История"), "clock"),
+            (tr("Модели"), "box"),
+            (tr("Профили"), "sliders"),
+            (tr("Настройки"), "gear"),
         )
         for index, (label, icon) in enumerate(nav_items):
             button = NavButton(label, icon)
@@ -289,7 +291,7 @@ class MainWindow(QWidget):
         status_row.addStretch(1)
         self.status_dot = StatusDot()
         status_row.addWidget(self.status_dot)
-        self.status_label = QLabel("Готов к работе")
+        self.status_label = QLabel(tr("Готов к работе"))
         self.status_label.setObjectName("status")
         status_row.addWidget(self.status_label)
         status_row.addStretch(1)
@@ -297,11 +299,11 @@ class MainWindow(QWidget):
 
         hint_row = QHBoxLayout()
         hint_row.addStretch(1)
-        prefix = QLabel("Нажмите")
+        prefix = QLabel(tr("Нажмите"))
         prefix.setObjectName("statusHint")
         self.hotkey_badge = QLabel(hotkeys.pretty(self.cfg.hotkey))
         self.hotkey_badge.setObjectName("kbd")
-        suffix = QLabel("или кнопку выше")
+        suffix = QLabel(tr("или кнопку выше"))
         suffix.setObjectName("statusHint")
         hint_row.addWidget(prefix)
         hint_row.addWidget(self.hotkey_badge)
@@ -317,22 +319,22 @@ class MainWindow(QWidget):
 
         tiles = QHBoxLayout()
         tiles.setSpacing(12)
-        self.tile_words = StatTile("0", "СЛОВ")
-        self.tile_count = StatTile("0", "ДИКТОВОК")
-        self.tile_minutes = StatTile("0", "МИНУТ")
+        self.tile_words = StatTile("0", tr("СЛОВ"))
+        self.tile_count = StatTile("0", tr("ДИКТОВОК"))
+        self.tile_minutes = StatTile("0", tr("МИНУТ"))
         for tile in (self.tile_words, self.tile_count, self.tile_minutes):
             tiles.addWidget(tile, 1)
         layout.addLayout(tiles)
         self._refresh_stats()
 
-        result_card = Card("Последний результат")
-        self.result_label = QLabel("Здесь появится распознанный текст.")
+        result_card = Card(tr("Последний результат"))
+        self.result_label = QLabel(tr("Здесь появится распознанный текст."))
         self.result_label.setObjectName("resultText")
         self.result_label.setWordWrap(True)
         self.result_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         result_card.add(self.result_label)
 
-        copy_button = QPushButton("Копировать")
+        copy_button = QPushButton(tr("Копировать"))
         copy_button.setObjectName("ghost")
         copy_button.setCursor(Qt.PointingHandCursor)
         copy_button.clicked.connect(lambda: copy_text(self.result_label.text()))
@@ -353,17 +355,17 @@ class MainWindow(QWidget):
         layout.setSpacing(14)
 
         header = QHBoxLayout()
-        title = QLabel("История")
+        title = QLabel(tr("История"))
         title.setObjectName("pageTitle")
         header.addWidget(title)
         header.addStretch(1)
-        export_button = QPushButton("Экспорт")
+        export_button = QPushButton(tr("Экспорт"))
         export_button.setObjectName("ghost")
         export_button.setCursor(Qt.PointingHandCursor)
         export_button.clicked.connect(self._export_history)
         header.addWidget(export_button)
 
-        clear_button = QPushButton("Очистить")
+        clear_button = QPushButton(tr("Очистить"))
         clear_button.setObjectName("danger")
         clear_button.setCursor(Qt.PointingHandCursor)
         clear_button.clicked.connect(self._clear_history)
@@ -371,7 +373,7 @@ class MainWindow(QWidget):
         layout.addLayout(header)
 
         self.history_search = QLineEdit()
-        self.history_search.setPlaceholderText("Поиск по истории")
+        self.history_search.setPlaceholderText(tr("Поиск по истории"))
         self.history_search.textChanged.connect(self._filter_history)
         layout.addWidget(self.history_search)
 
@@ -387,8 +389,8 @@ class MainWindow(QWidget):
 
         self.history_empty = EmptyState(
             "clock",
-            "История пуста",
-            "Здесь появится всё, что вы надиктуете.",
+            tr("История пуста"),
+            tr("Здесь появится всё, что вы надиктуете."),
         )
         layout.addWidget(self.history_empty, 1)
 
@@ -403,7 +405,7 @@ class MainWindow(QWidget):
         outer.setContentsMargins(30, 24, 30, 26)
         outer.setSpacing(14)
 
-        title = QLabel("Настройки")
+        title = QLabel(tr("Настройки"))
         title.setObjectName("pageTitle")
         outer.addWidget(title)
 
@@ -416,13 +418,13 @@ class MainWindow(QWidget):
         outer.addWidget(scroll, 1)
 
         # горячая клавиша
-        hotkey_card = Card("Управление")
+        hotkey_card = Card(tr("Управление"))
         self.hotkey_edit = HotkeyEdit(self.cfg.hotkey)
         self.hotkey_edit.setFixedWidth(210)
         self._add_setting(
             hotkey_card,
-            "Горячая клавиша",
-            "Нажмите поле и задайте сочетание",
+            tr("Горячая клавиша"),
+            tr("Нажмите поле и задайте сочетание"),
             self.hotkey_edit,
         )
 
@@ -430,8 +432,8 @@ class MainWindow(QWidget):
         self.language_hotkey_edit.setFixedWidth(210)
         self._add_setting(
             hotkey_card,
-            "Смена языка",
-            "Переключает русский → английский → автоопределение",
+            tr("Смена языка"),
+            tr("Переключает русский → английский → автоопределение"),
             self.language_hotkey_edit,
         )
 
@@ -439,208 +441,221 @@ class MainWindow(QWidget):
         self.repeat_hotkey_edit.setFixedWidth(210)
         self._add_setting(
             hotkey_card,
-            "Повторить вставку",
-            "Вставляет последний распознанный текст ещё раз",
+            tr("Повторить вставку"),
+            tr("Вставляет последний распознанный текст ещё раз"),
             self.repeat_hotkey_edit,
         )
 
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(MODES.keys())
-        self.mode_combo.setCurrentText(
-            next(k for k, v in MODES.items() if v == self.cfg.hotkey_mode)
-        )
+        self.mode_combo = QuietComboBox()
+        for label, value in MODES.items():
+            self.mode_combo.addItem(tr(label), value)
+        self.mode_combo.setCurrentIndex(max(0, self.mode_combo.findData(self.cfg.hotkey_mode)))
         self._add_setting(
             hotkey_card,
-            "Режим", "Как срабатывает горячая клавиша", self.mode_combo
+            tr("Режим"), tr("Как срабатывает горячая клавиша"), self.mode_combo
         )
         layout.addWidget(hotkey_card)
 
         # распознавание
-        model_card = Card("Распознавание")
+        model_card = Card(tr("Распознавание"))
         self.model_value = QLabel(self.cfg.model_size)
         self.model_value.setObjectName("settingDesc")
-        open_models = QPushButton("Управление моделями")
+        open_models = QPushButton(tr("Управление моделями"))
         open_models.setObjectName("ghost")
         open_models.setCursor(Qt.PointingHandCursor)
         open_models.clicked.connect(lambda: self._go_to_page(2))
         self._add_setting(
             model_card,
-            "Модель Whisper", self.model_value, open_models
+            tr("Модель Whisper"), self.model_value, open_models
         )
 
-        self.lang_combo = QComboBox()
-        self.lang_combo.addItems(LANGUAGES.keys())
-        self.lang_combo.setCurrentText(
-            next(k for k, v in LANGUAGES.items() if v == self.cfg.language)
-        )
+        self.lang_combo = QuietComboBox()
+        for label, value in LANGUAGES.items():
+            self.lang_combo.addItem(tr(label), value)
+        self.lang_combo.setCurrentIndex(max(0, self.lang_combo.findData(self.cfg.language)))
         self._add_setting(
             model_card,
-            "Язык", "Указание языка ускоряет распознавание", self.lang_combo
+            tr("Язык"), tr("Указание языка ускоряет распознавание"), self.lang_combo
         )
         self.translate_switch = ToggleSwitch(self.cfg.translate_to_english)
         self._add_setting(
             model_card,
-            "Переводить на английский",
-            "Речь на любом языке — текст на английском",
+            tr("Переводить на английский"),
+            tr("Речь на любом языке — текст на английском"),
             self.translate_switch,
         )
         layout.addWidget(model_card)
 
         # звук
-        audio_card = Card("Звук")
+        audio_card = Card(tr("Звук"))
         self.devices = list_input_devices()
-        self.device_combo = QComboBox()
-        self.device_combo.addItem("По умолчанию", None)
+        self.device_combo = QuietComboBox()
+        self.device_combo.addItem(tr("По умолчанию"), None)
         for index, name in self.devices:
             self.device_combo.addItem(name, index)
         position = self.device_combo.findData(self.cfg.input_device)
         self.device_combo.setCurrentIndex(max(0, position))
         self._add_setting(
             audio_card,
-            "Микрофон", "", self.device_combo
+            tr("Микрофон"), "", self.device_combo
         )
 
-        self.silence_combo = QComboBox()
+        self.silence_combo = QuietComboBox()
         for label, value in SILENCE_OPTIONS.items():
-            self.silence_combo.addItem(label, value)
+            self.silence_combo.addItem(tr(label), value)
         silence_position = self.silence_combo.findData(self.cfg.silence_stop)
         self.silence_combo.setCurrentIndex(max(0, silence_position))
         self._add_setting(
             audio_card,
-            "Автостоп по тишине",
-            "Запись закончится сама, когда вы замолчите",
+            tr("Автостоп по тишине"),
+            tr("Запись закончится сама, когда вы замолчите"),
             self.silence_combo,
         )
         layout.addWidget(audio_card)
 
         # поведение
-        behavior_card = Card("Поведение")
+        behavior_card = Card(tr("Поведение"))
         self.paste_switch = ToggleSwitch(self.cfg.auto_paste)
         self._add_setting(
             behavior_card,
-            "Автовставка",
-            "Вставлять текст в активное окно через Ctrl+V",
+            tr("Автовставка"),
+            tr("Вставлять текст в активное окно через Ctrl+V"),
             self.paste_switch,
         )
-        self.method_combo = QComboBox()
+        self.method_combo = QuietComboBox()
         for label, value in PASTE_METHODS.items():
-            self.method_combo.addItem(label, value)
+            self.method_combo.addItem(tr(label), value)
         method_position = self.method_combo.findData(self.cfg.paste_method)
         self.method_combo.setCurrentIndex(max(0, method_position))
         self._add_setting(
             behavior_card,
-            "Способ вставки",
-            "Если Ctrl+V не срабатывает, выберите ввод символами",
+            tr("Способ вставки"),
+            tr("Если Ctrl+V не срабатывает, выберите ввод символами"),
             self.method_combo,
         )
 
         self.sound_switch = ToggleSwitch(self.cfg.sound_feedback)
         self._add_setting(
             behavior_card,
-            "Звуковой сигнал", "Короткий сигнал в начале и в конце записи", self.sound_switch
+            tr("Звуковой сигнал"),
+            tr("Короткий сигнал в начале и в конце записи"),
+            self.sound_switch,
         )
 
         self.commands_switch = ToggleSwitch(self.cfg.voice_commands)
         self._add_setting(
             behavior_card,
-            "Голосовые команды",
-            "«точка», «запятая», «новый абзац» превращаются в знаки",
+            tr("Голосовые команды"),
+            tr("«точка», «запятая», «новый абзац» превращаются в знаки"),
             self.commands_switch,
         )
 
         self.streaming_switch = ToggleSwitch(self.cfg.streaming)
         self._add_setting(
             behavior_card,
-            "Показывать по ходу речи",
-            "Текст появляется в панели ещё во время диктовки",
+            tr("Показывать по ходу речи"),
+            tr("Текст появляется в панели ещё во время диктовки"),
             self.streaming_switch,
         )
 
         self.preview_switch = ToggleSwitch(self.cfg.preview_before_paste)
         self._add_setting(
             behavior_card,
-            "Показывать перед вставкой",
-            "Окно с текстом, который можно поправить или отклонить",
+            tr("Показывать перед вставкой"),
+            tr("Окно с текстом, который можно поправить или отклонить"),
             self.preview_switch,
         )
 
         self.autostart_switch = ToggleSwitch(self.cfg.autostart)
         self._add_setting(
             behavior_card,
-            "Запуск вместе с Windows",
-            "Приложение будет стартовать свёрнутым в трей",
+            tr("Запуск вместе с Windows"),
+            tr("Приложение будет стартовать свёрнутым в трей"),
             self.autostart_switch,
         )
         layout.addWidget(behavior_card)
 
         # внешний вид
-        appearance_card = Card("Внешний вид")
-        self.theme_combo = QComboBox()
+        appearance_card = Card(tr("Внешний вид"))
+        self.theme_combo = QuietComboBox()
         for label, value in THEMES.items():
-            self.theme_combo.addItem(label, value)
+            self.theme_combo.addItem(tr(label), value)
         self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(self.cfg.theme)))
         self.theme_combo.currentIndexChanged.connect(self._preview_appearance)
         self._add_setting(
             appearance_card,
-            "Тема", "", self.theme_combo
+            tr("Тема"), "", self.theme_combo
         )
 
-        self.accent_combo = QComboBox()
+        self.accent_combo = QuietComboBox()
         for label, value in theme.ACCENTS.items():
-            self.accent_combo.addItem(label, value)
+            self.accent_combo.addItem(tr(label), value)
         saved_accent = theme.normalize_accent(self.cfg.accent)
         self.accent_combo.setCurrentIndex(max(0, self.accent_combo.findData(saved_accent)))
         self.accent_combo.currentIndexChanged.connect(self._preview_appearance)
         self._add_setting(
             appearance_card,
-            "Акцентный цвет", "", self.accent_combo
+            tr("Акцентный цвет"), "", self.accent_combo
+        )
+        self.ui_language_combo = QuietComboBox()
+        for label, value in i18n.LANGUAGES.items():
+            self.ui_language_combo.addItem(label, value)
+        self.ui_language_combo.setCurrentIndex(
+            max(0, self.ui_language_combo.findData(self.cfg.ui_language))
+        )
+        self.ui_language_combo.currentIndexChanged.connect(self._switch_ui_language)
+        self._add_setting(
+            appearance_card,
+            tr("Язык интерфейса"),
+            tr("Меняется сразу, перезапуск не нужен"),
+            self.ui_language_combo,
         )
         layout.addWidget(appearance_card)
 
         # обновления
-        update_card = Card("Обновление")
-        self.update_status = QLabel(f"Установлена версия {__version__}")
+        update_card = Card(tr("Обновление"))
+        self.update_status = QLabel(tr("Установлена версия ") + __version__)
         self.update_status.setObjectName("settingDesc")
         self.update_status.setWordWrap(True)
-        self.check_update_button = QPushButton("Проверить")
+        self.check_update_button = QPushButton(tr("Проверить"))
         self.check_update_button.setObjectName("ghost")
         self.check_update_button.setCursor(Qt.PointingHandCursor)
         self.check_update_button.clicked.connect(self._check_updates)
         self._add_setting(
             update_card,
-            "Версия", self.update_status, self.check_update_button
+            tr("Версия"), self.update_status, self.check_update_button
         )
         layout.addWidget(update_card)
 
-        journal_card = Card("Диагностика")
+        journal_card = Card(tr("Диагностика"))
         journal_hint = QLabel(
-            "Журнал пишется при каждом запуске. Если что-то пошло не так, "
-            "он ответит на вопрос «что именно»."
+            tr("Журнал пишется при каждом запуске. Если что-то пошло не так, "
+            "он ответит на вопрос «что именно».")
         )
         journal_hint.setObjectName("settingDesc")
         journal_hint.setWordWrap(True)
-        open_journal = QPushButton("Открыть журнал")
+        open_journal = QPushButton(tr("Открыть журнал"))
         open_journal.setObjectName("ghost")
         open_journal.setCursor(Qt.PointingHandCursor)
         open_journal.clicked.connect(self._open_journal)
         self._add_setting(
             journal_card,
-            "Журнал работы", journal_hint, open_journal
+            tr("Журнал работы"), journal_hint, open_journal
         )
         layout.addWidget(journal_card)
 
         # словарь замен
-        replacements_card = Card("Словарь замен")
+        replacements_card = Card(tr("Словарь замен"))
         description = QLabel(
-            "По одной паре в строке: «было = стало». Применяется к каждому "
-            "распознанному тексту без учёта регистра."
+            tr("По одной паре в строке: «было = стало». Применяется к каждому "
+            "распознанному тексту без учёта регистра.")
         )
         description.setObjectName("settingDesc")
         description.setWordWrap(True)
         replacements_card.add(description)
 
         self.replacements_edit = QPlainTextEdit(format_replacements(self.cfg.replacements))
-        self.replacements_edit.setPlaceholderText("пайтон = Python\nгит хаб = GitHub")
+        self.replacements_edit.setPlaceholderText(tr("пайтон = Python\nгит хаб = GitHub"))
         self.replacements_edit.setFixedHeight(120)
         replacements_card.add(self.replacements_edit)
         layout.addWidget(replacements_card)
@@ -648,7 +663,7 @@ class MainWindow(QWidget):
 
         save_row = QHBoxLayout()
         save_row.addStretch(1)
-        self.save_button = QPushButton("Сохранить")
+        self.save_button = QPushButton(tr("Сохранить"))
         self.save_button.setObjectName("primary")
         self.save_button.setCursor(Qt.PointingHandCursor)
         self.save_button.clicked.connect(self._save_settings)
@@ -696,7 +711,7 @@ class MainWindow(QWidget):
 
     def _check_updates(self) -> None:
         self.check_update_button.setEnabled(False)
-        self.update_status.setText("Проверяю…")
+        self.update_status.setText(tr("Проверяю…"))
 
         def worker():
             self.update_checked.emit(*updater.check())
@@ -706,16 +721,25 @@ class MainWindow(QWidget):
     def _on_update_checked(self, available: bool, version: str, page: str) -> None:
         self.check_update_button.setEnabled(True)
         if available:
-            self.update_status.setText(f"Доступна версия {version}")
-            self.check_update_button.setText("Скачать")
+            self.update_status.setText(tr("Доступна версия ") + version)
+            self.check_update_button.setText(tr("Скачать"))
             self.check_update_button.clicked.disconnect()
             self.check_update_button.clicked.connect(
                 lambda: QDesktopServices.openUrl(QUrl(page))
             )
         elif version:
-            self.update_status.setText(f"Установлена последняя версия {__version__}")
+            self.update_status.setText(tr("Установлена последняя версия ") + __version__)
         else:
-            self.update_status.setText("Не удалось проверить обновления")
+            self.update_status.setText(tr("Не удалось проверить обновления"))
+
+    def _switch_ui_language(self) -> None:
+        """Язык интерфейса виден только после пересборки окна."""
+        code = self.ui_language_combo.currentData()
+        if code == self.cfg.ui_language:
+            return
+        self.cfg.ui_language = code
+        self.cfg.save()
+        self.controller.apply_ui_language(code)
 
     def _preview_appearance(self) -> None:
         """Показывает тему сразу, не дожидаясь кнопки «Сохранить»."""
@@ -770,11 +794,11 @@ class MainWindow(QWidget):
         self.home_waveform.set_role("danger" if recording else "accent")
 
         texts = {
-            engine_states.IDLE: "Готов к работе",
-            engine_states.RECORDING: "Слушаю…",
-            engine_states.TRANSCRIBING: "Распознаю речь…",
-            engine_states.LOADING: message or "Загрузка модели…",
-            engine_states.ERROR: message or "Ошибка",
+            engine_states.IDLE: tr("Готов к работе"),
+            engine_states.RECORDING: tr("Слушаю…"),
+            engine_states.TRANSCRIBING: tr("Распознаю речь…"),
+            engine_states.LOADING: message or tr("Загрузка модели…"),
+            engine_states.ERROR: message or tr("Ошибка"),
         }
         self.status_label.setText(texts.get(state, message))
         self.status_bar_text.setText(texts.get(state, message).lower().rstrip("…"))
@@ -798,7 +822,7 @@ class MainWindow(QWidget):
         label.setWordWrap(True)
         card.add(label)
 
-        copy_button = QPushButton("Копировать")
+        copy_button = QPushButton(tr("Копировать"))
         copy_button.setObjectName("ghost")
         copy_button.setCursor(Qt.PointingHandCursor)
         copy_button.clicked.connect(lambda: copy_text(text))
@@ -832,7 +856,7 @@ class MainWindow(QWidget):
         if not self.cfg.history:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить историю", "speakmot-history.txt", "Текст (*.txt)"
+            self, tr("Сохранить историю"), "speakmot-history.txt", tr("Текст (*.txt)")
         )
         if not path:
             return
@@ -840,7 +864,7 @@ class MainWindow(QWidget):
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write("\n\n".join(self.cfg.history))
         except OSError as exc:
-            self.history_search.setPlaceholderText(f"Не удалось сохранить: {exc}")
+            self.history_search.setPlaceholderText(tr("Не удалось сохранить: ") + str(exc))
 
     def _clear_history(self) -> None:
         self.cfg.history.clear()
@@ -857,8 +881,8 @@ class MainWindow(QWidget):
     def _save_settings(self) -> None:
         cfg = self.cfg
         cfg.hotkey = self.hotkey_edit.combo() or "ctrl+alt+space"
-        cfg.hotkey_mode = MODES[self.mode_combo.currentText()]
-        cfg.language = LANGUAGES[self.lang_combo.currentText()]
+        cfg.hotkey_mode = self.mode_combo.currentData()
+        cfg.language = self.lang_combo.currentData()
         cfg.input_device = self.device_combo.currentData()
         cfg.auto_paste = self.paste_switch.isChecked()
         cfg.paste_method = self.method_combo.currentData()
@@ -879,15 +903,15 @@ class MainWindow(QWidget):
         try:
             autostart.set_enabled(cfg.autostart)
         except OSError as exc:
-            self.status_label.setText(f"Не удалось изменить автозапуск: {exc}")
+            self.status_label.setText(tr("Не удалось изменить автозапуск: ") + str(exc))
 
         cfg.save()
 
         self.hotkey_badge.setText(hotkeys.pretty(cfg.hotkey))
         self.controller.reload(model_changed=False)
 
-        self.save_button.setText("Сохранено ✓")
-        QTimer.singleShot(1500, lambda: self.save_button.setText("Сохранить"))
+        self.save_button.setText(tr("Сохранено ✓"))
+        QTimer.singleShot(1500, lambda: self.save_button.setText(tr("Сохранить")))
 
     # --- изменение размера безрамочного окна ---
 

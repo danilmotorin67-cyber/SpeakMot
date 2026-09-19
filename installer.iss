@@ -1,6 +1,6 @@
 ; Установщик SpeakMotor. Собирается через ISCC installer.iss после PyInstaller.
 #define AppName "SpeakMotor"
-#define AppVersion "0.9.2"
+#define AppVersion "0.10.0"
 
 [Setup]
 AppName={#AppName}
