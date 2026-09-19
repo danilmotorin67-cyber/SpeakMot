@@ -2,6 +2,11 @@ name: Build Windows exe
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Опубликовать релиз с этим тегом, например v0.7.1"
+        required: false
+        default: ""
   push:
     branches: ["**"]
     tags: ["v*"]
@@ -36,6 +41,8 @@ jobs:
   build:
     needs: checks
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -102,9 +109,19 @@ jobs:
           retention-days: 30
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: SpeakMotor ${{ inputs.release_tag || github.ref_name }}
+          body: |
+            Локальная диктовка для Windows. Всё распознавание идёт офлайн.
+
+            - `SpeakMotor-setup-*.exe` — установщик, права администратора не нужны
+            - `SpeakMotor-windows.zip` — портативная версия
+
+            При первом запуске откроется вкладка «Модели»: выберите модель
+            и нажмите «Установить».
           files: |
             SpeakMotor-windows.zip
             installer/*.exe
