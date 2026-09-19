@@ -3,6 +3,8 @@ REM Локальная сборка SpeakMotor.exe (запускать в акт
 pip install -r requirements.txt
 pip install pyinstaller==6.11.1 --upgrade pyinstaller-hooks-contrib
 pyinstaller --noconfirm --onedir --windowed --name SpeakMotor ^
+  --icon assets/icon.ico ^
+  --add-data "assets;assets" ^
   --collect-all faster_whisper ^
   --collect-all ctranslate2 ^
   --collect-all tokenizers ^

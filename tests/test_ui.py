@@ -224,3 +224,24 @@ def test_status_bar_follows_state(window):
     assert window.status_bar_text.text() == "слушаю"
     assert len(window.clock.text()) == 8
     assert len(window.title_bar.dots) == 3
+
+
+def test_icon_file_is_shipped_and_multisize():
+    """Пустой значок в панели задач — это отсутствующий или однослойный .ico."""
+    from PySide6.QtGui import QIcon
+
+    from speakmot import branding
+
+    path = branding.resource_path(branding.ICON_FILE)
+    assert path.exists(), path
+    icon = QIcon(str(path))
+    sizes = {size.width() for size in icon.availableSizes()}
+    assert {16, 32, 48, 256} <= sizes, sizes
+
+
+def test_app_icon_never_empty(window):
+    from speakmot import branding
+
+    icon = branding.app_icon()
+    assert not icon.isNull()
+    assert not branding.mark_pixmap(16).isNull()

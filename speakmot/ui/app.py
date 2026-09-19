@@ -1,11 +1,11 @@
 import logging
 import sys
 
-from PySide6.QtCore import QObject, QRectF, Qt, QTimer, QtMsgType, Signal, qInstallMessageHandler
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QObject, QTimer, QtMsgType, Signal, qInstallMessageHandler
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import autostart, hotkeys, models
+from .. import autostart, branding, hotkeys, models
 from .. import engine as engine_states
 from ..config import Config
 from ..engine import Engine
@@ -37,19 +37,12 @@ class Bridge(QObject):
 
 
 def build_icon(recording: bool = False) -> QIcon:
-    pixmap = QPixmap(64, 64)
-    pixmap.fill(Qt.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(theme.color("danger") if recording else theme.color("accent")))
-    painter.drawRoundedRect(QRectF(4, 4, 56, 56), 16, 16)
-    painter.setBrush(QColor("#ffffff"))
-    painter.drawRoundedRect(QRectF(25, 15, 14, 22), 7, 7)
-    painter.drawRoundedRect(QRectF(21, 42, 22, 4), 2, 2)
-    painter.drawRoundedRect(QRectF(30, 37, 4, 6), 2, 2)
-    painter.end()
-    return QIcon(pixmap)
+    """Значок трея: тот же знак, но красный во время записи."""
+    color = theme.color("danger") if recording else branding.ACCENT
+    icon = QIcon()
+    for size in (16, 24, 32, 48, 64):
+        icon.addPixmap(branding.mark_pixmap(size, color))
+    return icon
 
 
 class SpeakMotApp:
@@ -57,6 +50,9 @@ class SpeakMotApp:
         qInstallMessageHandler(_route_qt_messages)
         self.qt = QApplication(sys.argv)
         self.qt.setApplicationName("SpeakMotor")
+        branding.set_app_user_model_id()
+        self.app_icon = branding.app_icon()
+        self.qt.setWindowIcon(self.app_icon)
         self.qt.setQuitOnLastWindowClosed(False)
 
         self.cfg = Config.load()
@@ -73,6 +69,8 @@ class SpeakMotApp:
         self.window = MainWindow(self)
         self.overlay = RecordingOverlay()
         self.preview = PreviewWindow()
+        for window in (self.window, self.overlay, self.preview):
+            window.setWindowIcon(self.app_icon)
         self.preview.accepted.connect(self._on_preview_accepted)
         self.preview.rejected.connect(lambda: self.overlay.hide())
         center_on_screen(self.window)

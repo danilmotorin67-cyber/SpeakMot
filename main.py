@@ -71,6 +71,10 @@ def selftest(report_path: str) -> int:
         failed = failed or line.startswith("FAIL")
         lines.append(line)
 
+    line = _check_icon()
+    failed = failed or line.startswith("FAIL")
+    lines.append(line)
+
     for line in _check_windows_paths():
         failed = failed or line.startswith("FAIL")
         lines.append(line)
@@ -80,6 +84,16 @@ def selftest(report_path: str) -> int:
         handle.write(report + "\n")
     print(report)
     return 1 if failed else 0
+
+
+def _check_icon() -> str:
+    """Без файла .ico панель задач рисует пустой квадрат."""
+    from speakmot import branding
+
+    path = branding.resource_path(branding.ICON_FILE)
+    if not path.exists():
+        return f"FAIL  значок: файл {path} не попал в сборку"
+    return f"OK    значок: {path.name}, {path.stat().st_size} байт"
 
 
 def _check_transcription() -> str:
