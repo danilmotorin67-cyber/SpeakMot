@@ -1,7 +1,7 @@
 import threading
 
-from PySide6.QtCore import QPoint, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QPoint, Qt, QTime, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -53,6 +53,25 @@ SILENCE_OPTIONS = {
 }
 
 
+class TrafficDot(QWidget):
+    """Точка-кружок в заголовке окна."""
+
+    def __init__(self, role: str, parent=None):
+        super().__init__(parent)
+        self._role = role
+        self.setFixedSize(9, 9)
+
+    def refresh_theme(self) -> None:
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(theme.color(self._role)))
+        painter.drawEllipse(self.rect())
+
+
 class TitleBar(QWidget):
     def __init__(self, window: "MainWindow"):
         super().__init__(window)
@@ -62,11 +81,23 @@ class TitleBar(QWidget):
         self._drag_offset: QPoint | None = None
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 0, 10, 0)
+        layout.setContentsMargins(14, 0, 10, 0)
         layout.setSpacing(6)
+
+        # три точки слева — как в окне терминала
+        dots = QHBoxLayout()
+        dots.setSpacing(7)
+        dots.setContentsMargins(0, 0, 0, 0)
+        self.dots = [TrafficDot(role) for role in ("danger", "accent", "dot")]
+        for dot in self.dots:
+            dots.addWidget(dot)
+        layout.addLayout(dots)
+        layout.addSpacing(10)
+        layout.addStretch(1)
 
         self.caption = QLabel("Запись")
         self.caption.setObjectName("titleLabel")
+        self.caption.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.caption)
         layout.addStretch(1)
 
@@ -143,6 +174,8 @@ class MainWindow(QWidget):
         self.pages.addWidget(self._build_settings_page())
         body.addWidget(self.pages, 1)
 
+        root_layout.addWidget(self._build_status_bar())
+
         self.pages.currentChanged.connect(self._sync_caption)
         self.update_checked.connect(self._on_update_checked)
 
@@ -154,6 +187,33 @@ class MainWindow(QWidget):
         self.setMouseTracking(True)
 
     # --- построение интерфейса ---
+
+    def _build_status_bar(self) -> QWidget:
+        """Тонкая строка внизу окна: подсказка слева, часы справа."""
+        bar = QWidget()
+        bar.setObjectName("statusBar")
+        bar.setFixedHeight(26)
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(18, 0, 18, 0)
+        layout.setSpacing(10)
+
+        self.status_bar_text = QLabel("готов")
+        self.status_bar_text.setObjectName("statusBarText")
+        layout.addWidget(self.status_bar_text)
+        layout.addStretch(1)
+
+        self.clock = QLabel("")
+        self.clock.setObjectName("clock")
+        layout.addWidget(self.clock)
+
+        self._clock_timer = QTimer(self)
+        self._clock_timer.timeout.connect(self._tick_clock)
+        self._clock_timer.start(1000)
+        self._tick_clock()
+        return bar
+
+    def _tick_clock(self) -> None:
+        self.clock.setText(QTime.currentTime().toString("HH:mm:ss"))
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -528,7 +588,8 @@ class MainWindow(QWidget):
         self.accent_combo = QComboBox()
         for label, value in theme.ACCENTS.items():
             self.accent_combo.addItem(label, value)
-        self.accent_combo.setCurrentIndex(max(0, self.accent_combo.findData(self.cfg.accent)))
+        saved_accent = theme.normalize_accent(self.cfg.accent)
+        self.accent_combo.setCurrentIndex(max(0, self.accent_combo.findData(saved_accent)))
         self.accent_combo.currentIndexChanged.connect(self._preview_appearance)
         self._add_setting(
             appearance_card,
@@ -672,6 +733,8 @@ class MainWindow(QWidget):
         """Иконки меню нарисованы в цвет темы, после смены их надо перерисовать."""
         for button in self.nav_group.buttons():
             button.refresh_icon()
+        for dot in self.title_bar.dots:
+            dot.refresh_theme()
 
     def _go_to_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
@@ -714,6 +777,7 @@ class MainWindow(QWidget):
             engine_states.ERROR: message or "Ошибка",
         }
         self.status_label.setText(texts.get(state, message))
+        self.status_bar_text.setText(texts.get(state, message).lower().rstrip("…"))
 
     def show_result(self, text: str) -> None:
         self.result_label.setText(text)

@@ -192,3 +192,35 @@ def test_statistics_tiles_show_numbers(window):
     assert window.tile_words.value.text() == "120"
     assert window.tile_count.value.text() == "7"
     assert window.tile_minutes.value.text() == "5"
+
+
+def test_old_accent_from_config_falls_back_to_palette():
+    """После смены палитры сохранённый синий цвет больше не существует."""
+    from speakmot.ui import theme
+
+    assert theme.normalize_accent("#5b8cff") == theme.DEFAULT_ACCENT
+    assert theme.normalize_accent("#d79921") == "#d79921"
+
+
+def test_every_palette_colour_is_valid(window):
+    """Опечатка в цвете рушит отрисовку уже во время работы."""
+    from PySide6.QtGui import QColor
+
+    from speakmot.ui import theme
+
+    for palette in theme.PALETTES.values():
+        for key, value in palette.items():
+            if value.startswith("#"):
+                assert QColor(value).isValid(), f"{key}={value}"
+    for value in theme.ACCENTS.values():
+        assert QColor(value).isValid(), value
+
+
+def test_status_bar_follows_state(window):
+    """Нижняя строка повторяет состояние движка и показывает часы."""
+    from speakmot import engine as engine_states
+
+    window.apply_state(engine_states.RECORDING, "")
+    assert window.status_bar_text.text() == "слушаю"
+    assert len(window.clock.text()) == 8
+    assert len(window.title_bar.dots) == 3

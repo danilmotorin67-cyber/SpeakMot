@@ -14,10 +14,8 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
-    QLinearGradient,
     QPainter,
     QPen,
-    QRadialGradient,
 )
 from PySide6.QtWidgets import (
     QFrame,
@@ -334,49 +332,27 @@ class MicButton(QWidget):
         radius = 46.0
         base = QColor(theme.color("danger") if self._recording else theme.color("accent"))
 
-        # расходящиеся кольца во время записи
+        # тонкие расходящиеся кольца во время записи
         if self._recording:
             for offset in (0.0, 0.5):
                 phase = (self._pulse + offset) % 1.0
                 ring = radius + 4 + phase * 22
-                glow = QColor(base)
-                glow.setAlphaF(max(0.0, 0.30 * (1.0 - phase)))
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(glow)
+                line = QColor(base)
+                line.setAlphaF(max(0.0, 0.45 * (1.0 - phase)))
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(line, 1.0))
                 painter.drawEllipse(center, ring, ring)
 
-        # мягкая подложка под кнопкой
-        halo = QRadialGradient(center, radius * 1.55)
-        soft = QColor(base)
-        soft.setAlpha(34 if self._hover else 22)
-        halo.setColorAt(0.62, soft)
-        soft_edge = QColor(base)
-        soft_edge.setAlpha(0)
-        halo.setColorAt(1.0, soft_edge)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(halo)
-        painter.drawEllipse(center, radius * 1.55, radius * 1.55)
-
-        gradient = QLinearGradient(
-            center.x(), center.y() - radius, center.x(), center.y() + radius
-        )
-        top = base.lighter(122 if self._hover else 114)
-        gradient.setColorAt(0.0, top)
-        gradient.setColorAt(1.0, base.darker(112))
-        painter.setBrush(gradient)
+        filled = self._recording or self._hover
+        painter.setPen(QPen(base, 1.4))
+        painter.setBrush(base if filled else Qt.NoBrush)
         painter.drawEllipse(center, radius, radius)
 
-        # тонкий блик по верхней кромке
-        rim = QColor("#ffffff")
-        rim.setAlpha(38)
-        painter.setPen(QPen(rim, 1.4))
-        painter.setBrush(Qt.NoBrush)
-        painter.drawEllipse(center, radius - 0.7, radius - 0.7)
-
+        ink = theme.color("on_accent") if filled else base.name()
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#ffffff"))
         cx, cy = center.x(), center.y()
         if self._recording:
-            painter.drawRoundedRect(QRectF(cx - 11, cy - 11, 22, 22), 6, 6)
+            painter.setBrush(QColor(ink))
+            painter.drawRect(QRectF(cx - 10, cy - 10, 20, 20))
         else:
-            icons.draw(painter, "mic", QRectF(cx - 23, cy - 23, 46, 46), "#ffffff")
+            icons.draw(painter, "mic", QRectF(cx - 23, cy - 23, 46, 46), ink)

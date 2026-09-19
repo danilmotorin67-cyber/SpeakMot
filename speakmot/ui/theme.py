@@ -1,61 +1,73 @@
-"""Палитра и таблица стилей. Тема и акцент меняются на лету."""
+"""Палитра и таблица стилей в духе терминала: моноширинный шрифт,
+тёплый почти-чёрный фон, тонкие рамки и ни одного градиента."""
 
-FONT = "Segoe UI Variable Display, Segoe UI, Inter, sans-serif"
+FONT = (
+    "Cascadia Mono, Consolas, JetBrains Mono, "
+    "DejaVu Sans Mono, Menlo, monospace"
+)
 
 ACCENTS = {
-    "Индиго": "#6366f1",
-    "Океан": "#0ea5e9",
-    "Изумруд": "#10b981",
-    "Янтарь": "#f59e0b",
-    "Роза": "#f43f5e",
-    "Аметист": "#a855f7",
+    "Терракота": "#e2603c",
+    "Янтарь": "#d79921",
+    "Хвоя": "#7fa650",
+    "Бирюза": "#4d9a9a",
+    "Лаванда": "#a98fd0",
+    "Малина": "#d3697f",
 }
 
 PALETTES = {
     "dark": {
-        "bg": "#0b0d13",
-        "surface": "#12151d",
-        "surface2": "#181c26",
-        "surface3": "#1f2430",
-        "border": "#242a37",
-        "border_hover": "#333b4d",
-        "text": "#eef1f7",
-        "text_dim": "#8e97ab",
-        "text_faint": "#5d6577",
-        "danger": "#f4676b",
-        "success": "#34d399",
-        "overlay_bg": "rgba(12, 14, 20, 242)",
-        "scroll": "#39415a",
-        "on_accent": "#ffffff",
-        "shadow": "rgba(0, 0, 0, 110)",
+        "bg": "#0f0d0c",
+        "surface": "#141110",
+        "surface2": "#191514",
+        "surface3": "#221c19",
+        "border": "#2b2421",
+        "border_hover": "#3d332d",
+        "text": "#d8d0c8",
+        "text_dim": "#9a9189",
+        "text_faint": "#6a625b",
+        "danger": "#d9544d",
+        "success": "#7fa650",
+        "overlay_bg": "rgba(15, 13, 12, 245)",
+        "scroll": "#3d332d",
+        "on_accent": "#0f0d0c",
+        "dot": "#3d332d",
     },
     "light": {
-        "bg": "#f3f5f9",
-        "surface": "#ffffff",
-        "surface2": "#f0f2f7",
-        "surface3": "#e7eaf1",
-        "border": "#e0e4ec",
-        "border_hover": "#c4cbd9",
-        "text": "#131720",
-        "text_dim": "#5b6579",
-        "text_faint": "#8b93a5",
-        "danger": "#dc2f36",
-        "success": "#0f9d63",
-        "overlay_bg": "rgba(255, 255, 255, 245)",
-        "scroll": "#b6becd",
-        "on_accent": "#ffffff",
-        "shadow": "rgba(15, 23, 42, 28)",
+        "bg": "#f6f2ec",
+        "surface": "#fffdf9",
+        "surface2": "#efe9e0",
+        "surface3": "#e5ddd2",
+        "border": "#ddd4c7",
+        "border_hover": "#c3b7a6",
+        "text": "#2b2421",
+        "text_dim": "#6b6159",
+        "text_faint": "#918a80",
+        "danger": "#b4332d",
+        "success": "#4f7a2f",
+        "overlay_bg": "rgba(255, 253, 249, 246)",
+        "scroll": "#c3b7a6",
+        "on_accent": "#fffdf9",
+        "dot": "#c3b7a6",
     },
 }
 
-_current = dict(PALETTES["dark"], accent=ACCENTS["Индиго"])
+_current = dict(PALETTES["dark"], accent=ACCENTS["Терракота"])
+
+
+DEFAULT_ACCENT = ACCENTS["Терракота"]
+
+
+def normalize_accent(accent: str) -> str:
+    """Старые настройки могли хранить цвет из прежней палитры."""
+    return accent if accent in ACCENTS.values() else DEFAULT_ACCENT
 
 
 def apply(theme: str, accent: str) -> None:
     """Запоминает выбранную тему и акцент как текущие."""
     _current.clear()
     _current.update(PALETTES.get(theme, PALETTES["dark"]))
-    _current["accent"] = accent
+    _current["accent"] = normalize_accent(accent)
 
 
 def color(key: str) -> str:
@@ -67,7 +79,7 @@ def is_dark() -> bool:
 
 
 def shift(hex_color: str, amount: int) -> str:
-    """Осветляет или затемняет цвет — для наведения и градиентов."""
+    """Осветляет или затемняет цвет — для наведения."""
     hex_color = hex_color.lstrip("#")
     channels = [int(hex_color[i : i + 2], 16) for i in (0, 2, 4)]
     channels = [max(0, min(255, value + amount)) for value in channels]
@@ -76,9 +88,8 @@ def shift(hex_color: str, amount: int) -> str:
 
 def qss() -> str:
     palette = dict(_current)
-    palette["accent_hover"] = shift(palette["accent"], 18)
-    palette["accent_press"] = shift(palette["accent"], -18)
-    palette["accent_soft"] = shift(palette["accent"], -120 if is_dark() else 150)
+    palette["accent_hover"] = shift(palette["accent"], 22)
+    palette["accent_soft"] = shift(palette["accent"], -130 if is_dark() else 140)
     palette["font"] = FONT
     return _TEMPLATE.format(**palette)
 
@@ -87,195 +98,185 @@ _TEMPLATE = """
 * {{
     font-family: {font};
     color: {text};
-    font-size: 14px;
+    font-size: 13px;
 }}
 
 #root {{
     background: {bg};
     border: 1px solid {border};
-    border-radius: 16px;
+    border-radius: 10px;
 }}
 
 /* --- заголовок окна --- */
-#titleBar {{ background: transparent; }}
+#titleBar {{
+    background: transparent;
+    border-bottom: 1px solid {border};
+}}
+#titleLabel {{
+    color: {text_dim};
+    font-size: 12px;
+    letter-spacing: 0.6px;
+}}
 #winBtn, #winBtnClose {{
     background: transparent;
     border: none;
     outline: none;
-    border-radius: 8px;
+    border-radius: 4px;
     color: {text_faint};
-    font-size: 15px;
+    font-size: 13px;
     padding: 0px;
 }}
 #winBtn:hover {{ background: {surface3}; color: {text}; }}
 #winBtnClose:hover {{ background: {danger}; color: #ffffff; }}
 
+/* --- строка состояния внизу --- */
+#statusBar {{
+    background: transparent;
+    border-top: 1px solid {border};
+}}
+#statusBarText, #clock {{
+    color: {text_faint};
+    font-size: 11px;
+    letter-spacing: 0.4px;
+}}
+
 /* --- боковая панель --- */
 #sidebar {{
-    background: {surface};
+    background: transparent;
     border-right: 1px solid {border};
-    border-top-left-radius: 16px;
-    border-bottom-left-radius: 16px;
 }}
 #brand {{
-    font-size: 19px;
-    font-weight: 800;
-    letter-spacing: -0.2px;
+    font-size: 17px;
+    font-weight: 700;
+    color: {accent};
+    letter-spacing: 3px;
 }}
 #brandSub {{
-    color: {accent};
+    color: {text_faint};
     font-size: 10px;
-    letter-spacing: 2.4px;
-    font-weight: 700;
+    letter-spacing: 2px;
 }}
 #navBtn {{
     background: transparent;
     border: none;
-    border-left: 3px solid transparent;
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-left: 2px solid transparent;
+    border-radius: 0px;
+    padding: 9px 12px;
     text-align: left;
     color: {text_dim};
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 13px;
 }}
-#navBtn:hover {{ background: {surface2}; color: {text}; }}
+#navBtn:hover {{ color: {text}; background: {surface2}; }}
 #navBtn:checked {{
-    background: {surface3};
-    border-left: 3px solid {accent};
-    color: {text};
-    font-weight: 700;
+    border-left: 2px solid {accent};
+    background: {surface2};
+    color: {accent};
 }}
 #sidebarSection {{
     color: {text_faint};
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.6px;
+    letter-spacing: 1.8px;
 }}
 
 /* --- страницы --- */
-#page {{
-    background: {bg};
-    border-top-right-radius: 16px;
-    border-bottom-right-radius: 16px;
-}}
+#page {{ background: {bg}; }}
 #pageTitle {{
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.4px;
+    font-size: 19px;
+    font-weight: 700;
+    color: {text};
+    letter-spacing: 1px;
 }}
-#pageHint, #hint {{ color: {text_dim}; font-size: 13px; }}
+#pageHint, #hint {{ color: {text_faint}; font-size: 12px; }}
 
-/* --- карточки --- */
+/* --- карточки: рамка без заливки --- */
 #card {{
-    background: {surface};
+    background: transparent;
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: 6px;
 }}
 #card:hover {{ border-color: {border_hover}; }}
 #cardTitle {{
-    font-size: 11px;
-    font-weight: 700;
-    color: {text_faint};
-    letter-spacing: 1.4px;
+    font-size: 10px;
+    color: {accent};
+    letter-spacing: 2px;
 }}
 #divider {{ background: {border}; border: none; max-height: 1px; }}
 
 #statTile {{
-    background: {surface};
+    background: transparent;
     border: 1px solid {border};
-    border-radius: 12px;
+    border-radius: 6px;
 }}
-#statValue {{ font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }}
-#statCaption {{ color: {text_faint}; font-size: 11px; font-weight: 600;
-    letter-spacing: 0.6px; }}
+#statValue {{ font-size: 19px; font-weight: 700; color: {accent}; }}
+#statCaption {{ color: {text_faint}; font-size: 10px; letter-spacing: 1.4px; }}
 
-#emptyTitle {{ font-size: 15px; font-weight: 700; color: {text_dim}; }}
-#emptyHint {{ font-size: 13px; color: {text_faint}; }}
+#emptyTitle {{ font-size: 13px; color: {text_dim}; letter-spacing: 1px; }}
+#emptyHint {{ font-size: 12px; color: {text_faint}; }}
 
-#titleLabel {{
-    color: {text_dim};
-    font-size: 13px;
-    font-weight: 600;
-}}
-
-#status {{ font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }}
-#statusHint {{ color: {text_dim}; font-size: 13px; }}
+#status {{ font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }}
+#statusHint {{ color: {text_faint}; font-size: 12px; }}
 #kbd {{
-    background: {surface3};
-    border: 1px solid {border};
-    border-radius: 8px;
-    padding: 6px 12px;
-    color: {text};
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
+    background: transparent;
+    border: 1px solid {border_hover};
+    border-radius: 4px;
+    padding: 3px 8px;
+    color: {text_dim};
+    font-size: 11px;
 }}
 #resultText {{
     background: transparent;
     border: none;
-    font-size: 15px;
-    line-height: 155%;
+    font-size: 13px;
+    line-height: 165%;
 }}
 
-/* --- кнопки --- */
+/* --- кнопки-чипы --- */
 QPushButton#primary {{
-    background: {accent};
-    border: none;
-    border-radius: 10px;
-    padding: 11px 20px;
-    color: {on_accent};
-    font-weight: 600;
+    background: transparent;
+    border: 1px solid {accent};
+    border-radius: 5px;
+    padding: 8px 16px;
+    color: {accent};
 }}
-QPushButton#primary:hover {{ background: {accent_hover}; }}
-QPushButton#primary:pressed {{ background: {accent_press}; }}
-QPushButton#primary:disabled {{ background: {surface3}; color: {text_faint}; }}
+QPushButton#primary:hover {{ background: {accent}; color: {on_accent}; }}
+QPushButton#primary:disabled {{ border-color: {border}; color: {text_faint}; }}
 
 QPushButton#ghost {{
-    background: {surface2};
+    background: transparent;
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 10px 18px;
-    color: {text};
-    font-weight: 500;
+    border-radius: 5px;
+    padding: 8px 14px;
+    color: {text_dim};
 }}
-QPushButton#ghost:hover {{ background: {surface3}; border-color: {border_hover}; }}
-QPushButton#ghost:pressed {{ background: {surface2}; }}
+QPushButton#ghost:hover {{ border-color: {border_hover}; color: {text}; }}
 QPushButton#ghost:disabled {{ color: {text_faint}; }}
 
 QPushButton#danger {{
     background: transparent;
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 10px 18px;
-    color: {text_dim};
-    font-weight: 500;
+    border-radius: 5px;
+    padding: 8px 14px;
+    color: {text_faint};
 }}
 QPushButton#danger:hover {{ border-color: {danger}; color: {danger}; }}
 
-/* --- поле горячей клавиши --- */
 #hotkeyEdit {{
-    background: {surface2};
+    background: transparent;
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 10px 16px;
+    border-radius: 5px;
+    padding: 8px 14px;
     color: {text};
-    font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.6px;
 }}
 #hotkeyEdit:hover {{ border-color: {border_hover}; }}
-#hotkeyEdit:checked {{
-    border-color: {accent};
-    background: {accent_soft};
-    color: {accent};
-}}
+#hotkeyEdit:checked {{ border-color: {accent}; color: {accent}; }}
 
 /* --- поля ввода --- */
 QComboBox, QLineEdit, QPlainTextEdit, QTextEdit {{
     background: {surface2};
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 9px 13px;
+    border-radius: 5px;
+    padding: 7px 11px;
     selection-background-color: {accent};
     selection-color: {on_accent};
 }}
@@ -285,22 +286,23 @@ QComboBox:hover, QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover {{
 QComboBox:focus, QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus {{
     border-color: {accent};
 }}
-QComboBox::drop-down {{ border: none; width: 28px; }}
+QComboBox::drop-down {{ border: none; width: 24px; }}
 QComboBox QAbstractItemView {{
     background: {surface2};
     border: 1px solid {border};
-    border-radius: 10px;
-    padding: 5px;
+    border-radius: 5px;
+    padding: 3px;
     outline: none;
     selection-background-color: {accent};
+    selection-color: {on_accent};
 }}
 
 /* --- прокрутка --- */
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
-QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
+QScrollBar:vertical {{ background: transparent; width: 8px; margin: 2px; }}
 QScrollBar::handle:vertical {{
-    background: {border}; border-radius: 5px; min-height: 32px;
+    background: {border}; border-radius: 4px; min-height: 28px;
 }}
 QScrollBar::handle:vertical:hover {{ background: {scroll}; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0px; }}
@@ -309,58 +311,56 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 /* --- плавающие окна --- */
 #overlay, #previewRoot {{
     background: {overlay_bg};
-    border: 1px solid {border};
-    border-radius: 20px;
+    border: 1px solid {border_hover};
+    border-radius: 8px;
 }}
-#overlayText {{ font-size: 14px; font-weight: 600; color: {text}; }}
-#overlayHint {{ font-size: 11px; color: {text_dim}; }}
-#previewTitle {{
-    font-size: 11px; font-weight: 700; color: {text_faint}; letter-spacing: 1.4px;
-}}
+#overlayText {{ font-size: 13px; color: {text}; }}
+#overlayHint {{ font-size: 11px; color: {text_faint}; }}
+#previewTitle {{ font-size: 10px; color: {accent}; letter-spacing: 2px; }}
 #previewEdit {{
     background: {surface2};
     border: 1px solid {border};
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 15px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
 }}
 
-/* --- прочее --- */
 QProgressBar {{
-    background: {surface3};
-    border: none;
-    border-radius: 9px;
-    height: 18px;
+    background: transparent;
+    border: 1px solid {border};
+    border-radius: 4px;
+    height: 16px;
     text-align: center;
-    color: {text};
-    font-size: 11px;
-    font-weight: 700;
-}}
-QProgressBar::chunk {{ background: {accent}; border-radius: 9px; }}
-
-#settingLabel {{ font-size: 14px; font-weight: 600; }}
-#settingDesc {{ color: {text_dim}; font-size: 12px; }}
-#badge {{
-    background: {surface3};
-    border-radius: 8px;
-    padding: 5px 11px;
     color: {text_dim};
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+}}
+QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
+
+#settingLabel {{ font-size: 13px; color: {text}; }}
+#settingDesc {{ color: {text_faint}; font-size: 11px; }}
+#badge {{
+    background: transparent;
+    border: 1px solid {border};
+    border-radius: 4px;
+    padding: 4px 9px;
+    color: {text_faint};
+    font-size: 10px;
+    letter-spacing: 1px;
 }}
 #badgeAccent {{
-    background: {accent_soft};
-    border-radius: 8px;
-    padding: 5px 11px;
+    background: transparent;
+    border: 1px solid {accent};
+    border-radius: 4px;
+    padding: 4px 9px;
     color: {accent};
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 1px;
 }}
 QToolTip {{
     background: {surface3};
     color: {text};
     border: 1px solid {border};
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: 4px;
+    padding: 5px 9px;
 }}
 """
