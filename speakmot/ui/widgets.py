@@ -160,6 +160,65 @@ class StatusDot(QWidget):
         painter.drawEllipse(self.rect().adjusted(3, 3, -3, -3))
 
 
+class StatTile(QFrame):
+    """Плитка с крупным числом и подписью."""
+
+    def __init__(self, value: str, caption: str, parent=None):
+        super().__init__(parent)
+        self.setObjectName("statTile")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(2)
+
+        self.value = QLabel(value)
+        self.value.setObjectName("statValue")
+        self.value.setAlignment(Qt.AlignCenter)
+        caption_label = QLabel(caption)
+        caption_label.setObjectName("statCaption")
+        caption_label.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(self.value)
+        layout.addWidget(caption_label)
+
+    def set_value(self, value: str) -> None:
+        self.value.setText(value)
+
+
+class EmptyState(QWidget):
+    """Заглушка для пустого раздела: значок, заголовок и подсказка."""
+
+    def __init__(self, icon_name: str, title: str, hint: str, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.addStretch(1)
+
+        glyph = QLabel()
+        glyph.setAlignment(Qt.AlignCenter)
+        glyph.setPixmap(icons.icon(icon_name, 44, theme.color("text_faint")).pixmap(44, 44))
+        layout.addWidget(glyph)
+
+        heading = QLabel(title)
+        heading.setObjectName("emptyTitle")
+        heading.setAlignment(Qt.AlignCenter)
+        layout.addWidget(heading)
+
+        message = QLabel(hint)
+        message.setObjectName("emptyHint")
+        message.setAlignment(Qt.AlignCenter)
+        message.setWordWrap(True)
+        layout.addWidget(message)
+        layout.addStretch(1)
+
+
+def divider() -> QFrame:
+    """Тонкая линия между строками настроек."""
+    line = QFrame()
+    line.setObjectName("divider")
+    line.setFixedHeight(1)
+    return line
+
+
 class Waveform(QWidget):
     """Полосы, отражающие громкость микрофона в реальном времени."""
 

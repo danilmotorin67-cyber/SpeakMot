@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..profiles import INHERIT, Profile
-from .widgets import Card
+from .widgets import Card, EmptyState
 
 LANGUAGES = {
     "как в настройках": INHERIT,
@@ -132,21 +132,37 @@ class ProfilesPage(QWidget):
         self.cards_layout.setSpacing(12)
         self.cards_layout.addStretch(1)
         scroll.setWidget(container)
+        self.scroll = scroll
         layout.addWidget(scroll, 1)
+
+        self.empty = EmptyState(
+            "sliders",
+            "Профилей пока нет",
+            "Добавьте профиль, чтобы у отдельной программы были свои настройки.",
+        )
+        layout.addWidget(self.empty, 1)
 
         self.cards: list[ProfileCard] = []
         for item in self.cfg.profiles:
             self.add_card(Profile.from_dict(item))
+        self._update_empty()
 
     def add_card(self, profile: Profile) -> None:
         card = ProfileCard(profile, self)
         self.cards.append(card)
         self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
+        self._update_empty()
 
     def remove_card(self, card: ProfileCard) -> None:
         self.cards.remove(card)
         card.setParent(None)
         card.deleteLater()
+        self._update_empty()
+
+    def _update_empty(self) -> None:
+        empty = not self.cards
+        self.empty.setVisible(empty)
+        self.scroll.setVisible(not empty)
 
     def save(self) -> None:
         profiles = [card.to_profile() for card in self.cards]

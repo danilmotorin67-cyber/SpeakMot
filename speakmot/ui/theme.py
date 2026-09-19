@@ -179,7 +179,25 @@ _TEMPLATE = """
     color: {text_faint};
     letter-spacing: 1.4px;
 }}
-#divider {{ background: {border}; border: none; }}
+#divider {{ background: {border}; border: none; max-height: 1px; }}
+
+#statTile {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 12px;
+}}
+#statValue {{ font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }}
+#statCaption {{ color: {text_faint}; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.6px; }}
+
+#emptyTitle {{ font-size: 15px; font-weight: 700; color: {text_dim}; }}
+#emptyHint {{ font-size: 13px; color: {text_faint}; }}
+
+#titleLabel {{
+    color: {text_dim};
+    font-size: 13px;
+    font-weight: 600;
+}}
 
 #status {{ font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }}
 #statusHint {{ color: {text_dim}; font-size: 13px; }}

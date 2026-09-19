@@ -29,7 +29,17 @@ from . import theme
 from .hotkey_edit import HotkeyEdit
 from .models_page import ModelsPage
 from .profiles_page import ProfilesPage
-from .widgets import Card, MicButton, NavButton, StatusDot, ToggleSwitch, Waveform
+from .widgets import (
+    Card,
+    EmptyState,
+    MicButton,
+    NavButton,
+    StatTile,
+    StatusDot,
+    ToggleSwitch,
+    Waveform,
+    divider,
+)
 
 LANGUAGES = {"Русский": "ru", "English": "en", "Автоопределение": "auto"}
 MODES = {"Переключением": "toggle", "Удержанием": "hold"}
@@ -55,6 +65,9 @@ class TitleBar(QWidget):
         layout.setContentsMargins(18, 0, 10, 0)
         layout.setSpacing(6)
 
+        self.caption = QLabel("Запись")
+        self.caption.setObjectName("titleLabel")
+        layout.addWidget(self.caption)
         layout.addStretch(1)
 
         for text, name, slot in (
@@ -109,7 +122,8 @@ class MainWindow(QWidget):
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        root_layout.addWidget(TitleBar(self))
+        self.title_bar = TitleBar(self)
+        root_layout.addWidget(self.title_bar)
 
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
@@ -129,11 +143,15 @@ class MainWindow(QWidget):
         self.pages.addWidget(self._build_settings_page())
         body.addWidget(self.pages, 1)
 
+        self.pages.currentChanged.connect(self._sync_caption)
         self.update_checked.connect(self._on_update_checked)
 
         self._level_timer = QTimer(self)
         self._level_timer.timeout.connect(self._poll_level)
         self._level_timer.start(45)
+
+        # безрамочное окно само по себе не тянется за края
+        self.setMouseTracking(True)
 
     # --- построение интерфейса ---
 
@@ -170,7 +188,7 @@ class MainWindow(QWidget):
         )
         for index, (label, icon) in enumerate(nav_items):
             button = NavButton(label, icon)
-            button.clicked.connect(lambda _checked, i=index: self.pages.setCurrentIndex(i))
+            button.clicked.connect(lambda _checked, i=index: self._go_to_page(i))
             self.nav_group.addButton(button, index)
             layout.addWidget(button)
         self.nav_group.button(0).setChecked(True)
@@ -237,10 +255,15 @@ class MainWindow(QWidget):
 
         layout.addStretch(1)
 
-        self.stats_label = QLabel(self._stats_text())
-        self.stats_label.setObjectName("statusHint")
-        self.stats_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.stats_label)
+        tiles = QHBoxLayout()
+        tiles.setSpacing(12)
+        self.tile_words = StatTile("0", "СЛОВ")
+        self.tile_count = StatTile("0", "ДИКТОВОК")
+        self.tile_minutes = StatTile("0", "МИНУТ")
+        for tile in (self.tile_words, self.tile_count, self.tile_minutes):
+            tiles.addWidget(tile, 1)
+        layout.addLayout(tiles)
+        self._refresh_stats()
 
         result_card = Card("Последний результат")
         self.result_label = QLabel("Здесь появится распознанный текст.")
@@ -299,10 +322,19 @@ class MainWindow(QWidget):
         self.history_layout.setSpacing(10)
         self.history_layout.addStretch(1)
         scroll.setWidget(container)
+        self.history_scroll = scroll
         layout.addWidget(scroll, 1)
+
+        self.history_empty = EmptyState(
+            "clock",
+            "История пуста",
+            "Здесь появится всё, что вы надиктуете.",
+        )
+        layout.addWidget(self.history_empty, 1)
 
         for text in self.cfg.history:
             self._append_history_card(text, to_top=False)
+        self._update_history_visibility()
         return page
 
     def _build_settings_page(self) -> QWidget:
@@ -327,32 +359,29 @@ class MainWindow(QWidget):
         hotkey_card = Card("Управление")
         self.hotkey_edit = HotkeyEdit(self.cfg.hotkey)
         self.hotkey_edit.setFixedWidth(210)
-        hotkey_card.body().addLayout(
-            self._setting_row(
-                "Горячая клавиша",
-                "Нажмите поле и задайте сочетание",
-                self.hotkey_edit,
-            )
+        self._add_setting(
+            hotkey_card,
+            "Горячая клавиша",
+            "Нажмите поле и задайте сочетание",
+            self.hotkey_edit,
         )
 
         self.language_hotkey_edit = HotkeyEdit(self.cfg.language_hotkey)
         self.language_hotkey_edit.setFixedWidth(210)
-        hotkey_card.body().addLayout(
-            self._setting_row(
-                "Смена языка",
-                "Переключает русский → английский → автоопределение",
-                self.language_hotkey_edit,
-            )
+        self._add_setting(
+            hotkey_card,
+            "Смена языка",
+            "Переключает русский → английский → автоопределение",
+            self.language_hotkey_edit,
         )
 
         self.repeat_hotkey_edit = HotkeyEdit(self.cfg.repeat_hotkey)
         self.repeat_hotkey_edit.setFixedWidth(210)
-        hotkey_card.body().addLayout(
-            self._setting_row(
-                "Повторить вставку",
-                "Вставляет последний распознанный текст ещё раз",
-                self.repeat_hotkey_edit,
-            )
+        self._add_setting(
+            hotkey_card,
+            "Повторить вставку",
+            "Вставляет последний распознанный текст ещё раз",
+            self.repeat_hotkey_edit,
         )
 
         self.mode_combo = QComboBox()
@@ -360,8 +389,9 @@ class MainWindow(QWidget):
         self.mode_combo.setCurrentText(
             next(k for k, v in MODES.items() if v == self.cfg.hotkey_mode)
         )
-        hotkey_card.body().addLayout(
-            self._setting_row("Режим", "Как срабатывает горячая клавиша", self.mode_combo)
+        self._add_setting(
+            hotkey_card,
+            "Режим", "Как срабатывает горячая клавиша", self.mode_combo
         )
         layout.addWidget(hotkey_card)
 
@@ -373,8 +403,9 @@ class MainWindow(QWidget):
         open_models.setObjectName("ghost")
         open_models.setCursor(Qt.PointingHandCursor)
         open_models.clicked.connect(lambda: self._go_to_page(2))
-        model_card.body().addLayout(
-            self._setting_row("Модель Whisper", self.model_value, open_models)
+        self._add_setting(
+            model_card,
+            "Модель Whisper", self.model_value, open_models
         )
 
         self.lang_combo = QComboBox()
@@ -382,16 +413,16 @@ class MainWindow(QWidget):
         self.lang_combo.setCurrentText(
             next(k for k, v in LANGUAGES.items() if v == self.cfg.language)
         )
-        model_card.body().addLayout(
-            self._setting_row("Язык", "Указание языка ускоряет распознавание", self.lang_combo)
+        self._add_setting(
+            model_card,
+            "Язык", "Указание языка ускоряет распознавание", self.lang_combo
         )
         self.translate_switch = ToggleSwitch(self.cfg.translate_to_english)
-        model_card.body().addLayout(
-            self._setting_row(
-                "Переводить на английский",
-                "Речь на любом языке — текст на английском",
-                self.translate_switch,
-            )
+        self._add_setting(
+            model_card,
+            "Переводить на английский",
+            "Речь на любом языке — текст на английском",
+            self.translate_switch,
         )
         layout.addWidget(model_card)
 
@@ -404,86 +435,81 @@ class MainWindow(QWidget):
             self.device_combo.addItem(name, index)
         position = self.device_combo.findData(self.cfg.input_device)
         self.device_combo.setCurrentIndex(max(0, position))
-        audio_card.body().addLayout(self._setting_row("Микрофон", "", self.device_combo))
+        self._add_setting(
+            audio_card,
+            "Микрофон", "", self.device_combo
+        )
 
         self.silence_combo = QComboBox()
         for label, value in SILENCE_OPTIONS.items():
             self.silence_combo.addItem(label, value)
         silence_position = self.silence_combo.findData(self.cfg.silence_stop)
         self.silence_combo.setCurrentIndex(max(0, silence_position))
-        audio_card.body().addLayout(
-            self._setting_row(
-                "Автостоп по тишине",
-                "Запись закончится сама, когда вы замолчите",
-                self.silence_combo,
-            )
+        self._add_setting(
+            audio_card,
+            "Автостоп по тишине",
+            "Запись закончится сама, когда вы замолчите",
+            self.silence_combo,
         )
         layout.addWidget(audio_card)
 
         # поведение
         behavior_card = Card("Поведение")
         self.paste_switch = ToggleSwitch(self.cfg.auto_paste)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Автовставка",
-                "Вставлять текст в активное окно через Ctrl+V",
-                self.paste_switch,
-            )
+        self._add_setting(
+            behavior_card,
+            "Автовставка",
+            "Вставлять текст в активное окно через Ctrl+V",
+            self.paste_switch,
         )
         self.method_combo = QComboBox()
         for label, value in PASTE_METHODS.items():
             self.method_combo.addItem(label, value)
         method_position = self.method_combo.findData(self.cfg.paste_method)
         self.method_combo.setCurrentIndex(max(0, method_position))
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Способ вставки",
-                "Если Ctrl+V не срабатывает, выберите ввод символами",
-                self.method_combo,
-            )
+        self._add_setting(
+            behavior_card,
+            "Способ вставки",
+            "Если Ctrl+V не срабатывает, выберите ввод символами",
+            self.method_combo,
         )
 
         self.sound_switch = ToggleSwitch(self.cfg.sound_feedback)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Звуковой сигнал", "Короткий сигнал в начале и в конце записи", self.sound_switch
-            )
+        self._add_setting(
+            behavior_card,
+            "Звуковой сигнал", "Короткий сигнал в начале и в конце записи", self.sound_switch
         )
 
         self.commands_switch = ToggleSwitch(self.cfg.voice_commands)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Голосовые команды",
-                "«точка», «запятая», «новый абзац» превращаются в знаки",
-                self.commands_switch,
-            )
+        self._add_setting(
+            behavior_card,
+            "Голосовые команды",
+            "«точка», «запятая», «новый абзац» превращаются в знаки",
+            self.commands_switch,
         )
 
         self.streaming_switch = ToggleSwitch(self.cfg.streaming)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Показывать по ходу речи",
-                "Текст появляется в панели ещё во время диктовки",
-                self.streaming_switch,
-            )
+        self._add_setting(
+            behavior_card,
+            "Показывать по ходу речи",
+            "Текст появляется в панели ещё во время диктовки",
+            self.streaming_switch,
         )
 
         self.preview_switch = ToggleSwitch(self.cfg.preview_before_paste)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Показывать перед вставкой",
-                "Окно с текстом, который можно поправить или отклонить",
-                self.preview_switch,
-            )
+        self._add_setting(
+            behavior_card,
+            "Показывать перед вставкой",
+            "Окно с текстом, который можно поправить или отклонить",
+            self.preview_switch,
         )
 
         self.autostart_switch = ToggleSwitch(self.cfg.autostart)
-        behavior_card.body().addLayout(
-            self._setting_row(
-                "Запуск вместе с Windows",
-                "Приложение будет стартовать свёрнутым в трей",
-                self.autostart_switch,
-            )
+        self._add_setting(
+            behavior_card,
+            "Запуск вместе с Windows",
+            "Приложение будет стартовать свёрнутым в трей",
+            self.autostart_switch,
         )
         layout.addWidget(behavior_card)
 
@@ -494,15 +520,19 @@ class MainWindow(QWidget):
             self.theme_combo.addItem(label, value)
         self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(self.cfg.theme)))
         self.theme_combo.currentIndexChanged.connect(self._preview_appearance)
-        appearance_card.body().addLayout(self._setting_row("Тема", "", self.theme_combo))
+        self._add_setting(
+            appearance_card,
+            "Тема", "", self.theme_combo
+        )
 
         self.accent_combo = QComboBox()
         for label, value in theme.ACCENTS.items():
             self.accent_combo.addItem(label, value)
         self.accent_combo.setCurrentIndex(max(0, self.accent_combo.findData(self.cfg.accent)))
         self.accent_combo.currentIndexChanged.connect(self._preview_appearance)
-        appearance_card.body().addLayout(
-            self._setting_row("Акцентный цвет", "", self.accent_combo)
+        self._add_setting(
+            appearance_card,
+            "Акцентный цвет", "", self.accent_combo
         )
         layout.addWidget(appearance_card)
 
@@ -515,8 +545,9 @@ class MainWindow(QWidget):
         self.check_update_button.setObjectName("ghost")
         self.check_update_button.setCursor(Qt.PointingHandCursor)
         self.check_update_button.clicked.connect(self._check_updates)
-        update_card.body().addLayout(
-            self._setting_row("Версия", self.update_status, self.check_update_button)
+        self._add_setting(
+            update_card,
+            "Версия", self.update_status, self.check_update_button
         )
         layout.addWidget(update_card)
 
@@ -531,8 +562,9 @@ class MainWindow(QWidget):
         open_journal.setObjectName("ghost")
         open_journal.setCursor(Qt.PointingHandCursor)
         open_journal.clicked.connect(self._open_journal)
-        journal_card.body().addLayout(
-            self._setting_row("Журнал работы", journal_hint, open_journal)
+        self._add_setting(
+            journal_card,
+            "Журнал работы", journal_hint, open_journal
         )
         layout.addWidget(journal_card)
 
@@ -562,6 +594,14 @@ class MainWindow(QWidget):
         save_row.addWidget(self.save_button)
         outer.addLayout(save_row)
         return page
+
+    def _add_setting(self, card, label: str, description, *widgets) -> None:
+        """Добавляет строку настройки, отделяя её от предыдущей линией."""
+        body = card.body()
+        # первый элемент карточки — её заголовок, после него линия не нужна
+        if body.count() > 1:
+            body.addWidget(divider())
+        body.addLayout(self._setting_row(label, description, *widgets))
 
     def _setting_row(self, label: str, description, *widgets) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -622,14 +662,11 @@ class MainWindow(QWidget):
             self.theme_combo.currentData(), self.accent_combo.currentData()
         )
 
-    def _stats_text(self) -> str:
+    def _refresh_stats(self) -> None:
         stats = self.cfg.stats
-        count = int(stats.get("count", 0))
-        if not count:
-            return "Пока ничего не надиктовано"
-        words = int(stats.get("words", 0))
-        minutes = stats.get("seconds", 0) / 60
-        return f"Надиктовано: {words} слов за {count} раз · {minutes:.0f} мин записи"
+        self.tile_words.set_value(f"{int(stats.get('words', 0))}")
+        self.tile_count.set_value(f"{int(stats.get('count', 0))}")
+        self.tile_minutes.set_value(f"{stats.get('seconds', 0) / 60:.0f}")
 
     def refresh_icons(self) -> None:
         """Иконки меню нарисованы в цвет темы, после смены их надо перерисовать."""
@@ -639,6 +676,12 @@ class MainWindow(QWidget):
     def _go_to_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
         self.nav_group.button(index).setChecked(True)
+
+    def _sync_caption(self, index: int) -> None:
+        button = self.nav_group.button(index)
+        if button is not None:
+            self.title_bar.caption.setText(button.text())
+            button.setChecked(True)
 
     def show_model(self, size: str) -> None:
         self.model_badge.setText(size)
@@ -674,7 +717,7 @@ class MainWindow(QWidget):
 
     def show_result(self, text: str) -> None:
         self.result_label.setText(text)
-        self.stats_label.setText(self._stats_text())
+        self._refresh_stats()
         self._append_history_card(text, to_top=True)
 
     def _poll_level(self) -> None:
@@ -702,6 +745,14 @@ class MainWindow(QWidget):
 
         index = 0 if to_top else self.history_layout.count() - 1
         self.history_layout.insertWidget(index, card)
+        self._update_history_visibility()
+
+    def _update_history_visibility(self) -> None:
+        """Пустой список без объяснения выглядит как поломка."""
+        empty = self.history_layout.count() <= 1
+        self.history_empty.setVisible(empty)
+        self.history_scroll.setVisible(not empty)
+        self.history_search.setVisible(not empty)
 
     def _filter_history(self, query: str) -> None:
         needle = query.strip().lower()
@@ -735,6 +786,7 @@ class MainWindow(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         self.history_search.clear()
+        self._update_history_visibility()
 
     # --- настройки ---
 
@@ -772,6 +824,61 @@ class MainWindow(QWidget):
 
         self.save_button.setText("Сохранено ✓")
         QTimer.singleShot(1500, lambda: self.save_button.setText("Сохранить"))
+
+    # --- изменение размера безрамочного окна ---
+
+    def _edges_at(self, position):
+        """Какие края окна под курсором. Ничего — None.
+
+        Пустое значение флагов Qt приходится обходить: его конструктор ведёт
+        себя по-разному в зависимости от того, откуда импортирован Qt.
+        """
+        margin = 6
+        found = []
+        if position.x() <= margin:
+            found.append(Qt.LeftEdge)
+        if position.x() >= self.width() - margin:
+            found.append(Qt.RightEdge)
+        if position.y() <= margin:
+            found.append(Qt.TopEdge)
+        if position.y() >= self.height() - margin:
+            found.append(Qt.BottomEdge)
+
+        if not found:
+            return None
+        edges = found[0]
+        for edge in found[1:]:
+            edges |= edge
+        return edges
+
+    def _cursor_for(self, edges):
+        if edges is None:
+            return Qt.ArrowCursor
+        if edges in (Qt.LeftEdge | Qt.TopEdge, Qt.RightEdge | Qt.BottomEdge):
+            return Qt.SizeFDiagCursor
+        if edges in (Qt.RightEdge | Qt.TopEdge, Qt.LeftEdge | Qt.BottomEdge):
+            return Qt.SizeBDiagCursor
+        if edges & (Qt.LeftEdge | Qt.RightEdge):
+            return Qt.SizeHorCursor
+        if edges & (Qt.TopEdge | Qt.BottomEdge):
+            return Qt.SizeVerCursor
+        return Qt.ArrowCursor
+
+    def mouseMoveEvent(self, event):
+        self.setCursor(self._cursor_for(self._edges_at(event.position().toPoint())))
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event):
+        edges = self._edges_at(event.position().toPoint())
+        handle = self.windowHandle()
+        if event.button() == Qt.LeftButton and edges is not None and handle is not None:
+            handle.startSystemResize(edges)
+            return
+        super().mousePressEvent(event)
+
+    def leaveEvent(self, event):
+        self.unsetCursor()
+        super().leaveEvent(event)
 
     def closeEvent(self, event):
         event.ignore()

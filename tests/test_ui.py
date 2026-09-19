@@ -151,3 +151,44 @@ def test_every_icon_draws(window):
         pixmap = icons.icon(name, 18, "#8e97ab").pixmap(18, 18)
         assert not pixmap.isNull()
         assert pixmap.toImage().constBits() is not None
+
+
+def test_caption_follows_the_open_page(window):
+    """Подпись в заголовке окна должна совпадать с открытым разделом."""
+    for index in range(window.pages.count()):
+        window.pages.setCurrentIndex(index)
+        expected = window.nav_group.button(index).text()
+        assert window.title_bar.caption.text() == expected
+
+
+def test_window_edges_report_resize_cursors(window):
+    from PySide6.QtCore import QPoint, Qt
+
+    window.resize(900, 620)
+    assert window._edges_at(QPoint(2, 300)) == Qt.LeftEdge
+    assert window._edges_at(QPoint(898, 300)) == Qt.RightEdge
+    assert window._edges_at(QPoint(450, 618)) == Qt.BottomEdge
+    assert window._edges_at(QPoint(450, 300)) is None
+    assert window._cursor_for(None) == Qt.ArrowCursor
+    assert window._edges_at(QPoint(2, 2)) == (Qt.LeftEdge | Qt.TopEdge)
+
+
+def test_empty_history_explains_itself(window):
+    """Пустой список без подсказки читается как поломка."""
+    window.cfg.history.clear()
+    window._clear_history()
+    # страница скрыта стеком, пока не открыта, поэтому смотрим на явное скрытие
+    assert not window.history_empty.isHidden()
+    assert window.history_search.isHidden()
+
+    window.show_result("проверка")
+    assert window.history_empty.isHidden()
+    assert not window.history_search.isHidden()
+
+
+def test_statistics_tiles_show_numbers(window):
+    window.cfg.stats = {"words": 120, "count": 7, "seconds": 300}
+    window._refresh_stats()
+    assert window.tile_words.value.text() == "120"
+    assert window.tile_count.value.text() == "7"
+    assert window.tile_minutes.value.text() == "5"
