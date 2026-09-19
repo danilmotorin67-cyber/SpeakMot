@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, autostart, hotkeys, updater
+from .. import __version__, autostart, hotkeys, journal, updater
 from .. import engine as engine_states
 from ..audio import list_input_devices
 from ..output import copy_text
@@ -237,6 +237,11 @@ class MainWindow(QWidget):
 
         layout.addStretch(1)
 
+        self.stats_label = QLabel(self._stats_text())
+        self.stats_label.setObjectName("statusHint")
+        self.stats_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.stats_label)
+
         result_card = Card("Последний результат")
         self.result_label = QLabel("Здесь появится распознанный текст.")
         self.result_label.setObjectName("resultText")
@@ -337,6 +342,16 @@ class MainWindow(QWidget):
                 "Смена языка",
                 "Переключает русский → английский → автоопределение",
                 self.language_hotkey_edit,
+            )
+        )
+
+        self.repeat_hotkey_edit = HotkeyEdit(self.cfg.repeat_hotkey)
+        self.repeat_hotkey_edit.setFixedWidth(210)
+        hotkey_card.body().addLayout(
+            self._setting_row(
+                "Повторить вставку",
+                "Вставляет последний распознанный текст ещё раз",
+                self.repeat_hotkey_edit,
             )
         )
 
@@ -444,6 +459,15 @@ class MainWindow(QWidget):
             )
         )
 
+        self.streaming_switch = ToggleSwitch(self.cfg.streaming)
+        behavior_card.body().addLayout(
+            self._setting_row(
+                "Показывать по ходу речи",
+                "Текст появляется в панели ещё во время диктовки",
+                self.streaming_switch,
+            )
+        )
+
         self.preview_switch = ToggleSwitch(self.cfg.preview_before_paste)
         behavior_card.body().addLayout(
             self._setting_row(
@@ -496,6 +520,22 @@ class MainWindow(QWidget):
         )
         layout.addWidget(update_card)
 
+        journal_card = Card("Диагностика")
+        journal_hint = QLabel(
+            "Журнал пишется при каждом запуске. Если что-то пошло не так, "
+            "он ответит на вопрос «что именно»."
+        )
+        journal_hint.setObjectName("settingDesc")
+        journal_hint.setWordWrap(True)
+        open_journal = QPushButton("Открыть журнал")
+        open_journal.setObjectName("ghost")
+        open_journal.setCursor(Qt.PointingHandCursor)
+        open_journal.clicked.connect(self._open_journal)
+        journal_card.body().addLayout(
+            self._setting_row("Журнал работы", journal_hint, open_journal)
+        )
+        layout.addWidget(journal_card)
+
         # словарь замен
         replacements_card = Card("Словарь замен")
         description = QLabel(
@@ -546,6 +586,13 @@ class MainWindow(QWidget):
             row.addWidget(widget, 0)
         return row
 
+    def _open_journal(self) -> None:
+        path = journal.log_path()
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
     def _check_updates(self) -> None:
         self.check_update_button.setEnabled(False)
         self.update_status.setText("Проверяю…")
@@ -574,6 +621,15 @@ class MainWindow(QWidget):
         self.controller.apply_appearance(
             self.theme_combo.currentData(), self.accent_combo.currentData()
         )
+
+    def _stats_text(self) -> str:
+        stats = self.cfg.stats
+        count = int(stats.get("count", 0))
+        if not count:
+            return "Пока ничего не надиктовано"
+        words = int(stats.get("words", 0))
+        minutes = stats.get("seconds", 0) / 60
+        return f"Надиктовано: {words} слов за {count} раз · {minutes:.0f} мин записи"
 
     def refresh_icons(self) -> None:
         """Иконки меню нарисованы в цвет темы, после смены их надо перерисовать."""
@@ -618,6 +674,7 @@ class MainWindow(QWidget):
 
     def show_result(self, text: str) -> None:
         self.result_label.setText(text)
+        self.stats_label.setText(self._stats_text())
         self._append_history_card(text, to_top=True)
 
     def _poll_level(self) -> None:
@@ -696,6 +753,8 @@ class MainWindow(QWidget):
         cfg.voice_commands = self.commands_switch.isChecked()
         cfg.translate_to_english = self.translate_switch.isChecked()
         cfg.language_hotkey = self.language_hotkey_edit.combo()
+        cfg.repeat_hotkey = self.repeat_hotkey_edit.combo()
+        cfg.streaming = self.streaming_switch.isChecked()
         cfg.preview_before_paste = self.preview_switch.isChecked()
         cfg.theme = self.theme_combo.currentData()
         cfg.accent = self.accent_combo.currentData()

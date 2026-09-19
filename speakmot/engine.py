@@ -1,6 +1,7 @@
 import contextlib
+import logging
 import threading
-import traceback
+import time
 
 import keyboard
 
@@ -17,6 +18,8 @@ TRANSCRIBING = "transcribing"
 LOADING = "loading"
 ERROR = "error"
 
+log = logging.getLogger("speakmot.engine")
+
 MODIFIERS = {"ctrl", "alt", "shift", "windows", "win", "cmd"}
 LANGUAGE_NAMES = {"ru": "русский", "en": "английский", "auto": "автоопределение"}
 
@@ -32,11 +35,19 @@ class Engine:
     переносить их в свой поток самостоятельно.
     """
 
-    def __init__(self, cfg: Config, on_state=None, on_result=None, on_language_changed=None):
+    def __init__(
+        self,
+        cfg: Config,
+        on_state=None,
+        on_result=None,
+        on_language_changed=None,
+        on_partial=None,
+    ):
         self.cfg = cfg
         self.on_state = on_state or (lambda state, message: None)
         self.on_result = on_result or (lambda text: None)
         self.on_language_changed = on_language_changed or (lambda language: None)
+        self.on_partial = on_partial or (lambda text: None)
         self.recorder = Recorder(cfg.sample_rate, cfg.input_device)
         self.transcriber = Transcriber(cfg)
         self.state = IDLE
@@ -47,6 +58,8 @@ class Engine:
         self._busy = threading.Lock()
         self.target_window = 0
         self.resolved = None
+        self.last_text = ""
+        self._started_at = 0.0
 
     def _set_state(self, state: str, message: str = "") -> None:
         self.state = state
@@ -56,6 +69,7 @@ class Engine:
 
     def install_hotkey(self) -> None:
         self.remove_hotkey()
+        log.info("назначаю горячую клавишу %s (%s)", self.cfg.hotkey, self.cfg.hotkey_mode)
         try:
             self._hotkey_handles.append(
                 keyboard.add_hotkey(
@@ -66,6 +80,14 @@ class Engine:
             )
             if self.cfg.hotkey_mode == "hold":
                 self._release_hook = keyboard.hook(self._on_key_event)
+            if self.cfg.repeat_hotkey.strip():
+                self._hotkey_handles.append(
+                    keyboard.add_hotkey(
+                        self.cfg.repeat_hotkey.strip(),
+                        self.repeat_last,
+                        suppress=False,
+                    )
+                )
             if self.cfg.language_hotkey.strip():
                 self._hotkey_handles.append(
                     keyboard.add_hotkey(
@@ -75,6 +97,7 @@ class Engine:
                     )
                 )
         except Exception as exc:
+            log.exception("горячая клавиша не назначилась")
             self._set_state(ERROR, f"Не удалось назначить {self.cfg.hotkey}: {exc}")
             return
         if self.state in (IDLE, ERROR):
@@ -120,6 +143,15 @@ class Engine:
             keyboard.remove_hotkey(self._cancel_hook)
         self._cancel_hook = None
 
+    def repeat_last(self) -> None:
+        """Вставляет последний распознанный текст ещё раз."""
+        if not self.last_text:
+            self._set_state(IDLE, "Нечего повторять")
+            return
+        self.target_window = winapi.foreground_window()
+        self.deliver(self.last_text, restore_focus=False)
+        self._set_state(IDLE, "Вставлено повторно")
+
     def switch_language(self) -> None:
         """Переключает язык между русским и английским прямо во время работы."""
         order = ["ru", "en", "auto"]
@@ -154,10 +186,17 @@ class Engine:
         except Exception as exc:
             self._set_state(ERROR, f"Микрофон недоступен: {exc}")
             return
+        log.info(
+            "запись начата, профиль %r, язык %s",
+            self.resolved.profile_name or "общий",
+            self.resolved.language,
+        )
         if self.cfg.sound_feedback:
             output.beep(True)
+        self._started_at = time.monotonic()
         self._install_cancel_hotkey()
         self._start_watchdog()
+        self._start_streaming()
         self._set_state(RECORDING)
 
     def _resolve_context(self) -> None:
@@ -185,6 +224,37 @@ class Engine:
 
         self._watchdog = threading.Thread(target=watch, daemon=True)
         self._watchdog.start()
+
+    def _start_streaming(self) -> None:
+        """Показывает распознанное по ходу речи.
+
+        Модель запускается на накопленном куске целиком: это дороже, чем
+        досчитывать хвост, зато не путает границы слов. Текст только
+        показывается — вставляется по-прежнему итоговый.
+        """
+        if not self.cfg.streaming:
+            return
+
+        def watch():
+            settings = self.resolved
+            while self.recorder.is_recording:
+                threading.Event().wait(2.5)
+                if not self.recorder.is_recording:
+                    return
+                audio = self.recorder.snapshot()
+                if audio.size < self.cfg.sample_rate:
+                    continue
+                try:
+                    text = self.transcriber.transcribe(
+                        normalize(audio), language=settings.language
+                    )
+                except Exception:
+                    log.exception("предпросмотр по ходу речи не удался")
+                    return
+                if text and self.recorder.is_recording:
+                    self.on_partial(text)
+
+        threading.Thread(target=watch, daemon=True).start()
 
     def stop_and_transcribe(self) -> None:
         if not self.recorder.is_recording:
@@ -214,7 +284,7 @@ class Engine:
                     translate=self.cfg.translate_to_english,
                 )
             except Exception:
-                traceback.print_exc()
+                log.exception("распознавание не удалось")
                 self._set_state(ERROR, "Ошибка распознавания")
                 return
 
@@ -225,6 +295,8 @@ class Engine:
                 self._set_state(ERROR, "Ничего не распознано")
                 return
 
+            self.last_text = text
+            self._record_stats(text)
             self.cfg.history.insert(0, text)
             del self.cfg.history[50:]
             self.cfg.save()
@@ -247,6 +319,16 @@ class Engine:
             output.deliver(text, settings.paste_method)
         else:
             output.copy_text(text)
+
+    def _record_stats(self, text: str) -> None:
+        """Копит, сколько всего надиктовано — просто приятно видеть."""
+        stats = self.cfg.stats
+        stats["count"] = stats.get("count", 0) + 1
+        stats["words"] = stats.get("words", 0) + len(text.split())
+        if self._started_at:
+            stats["seconds"] = stats.get("seconds", 0) + (
+                time.monotonic() - self._started_at
+            )
 
     # --- модель ---
 

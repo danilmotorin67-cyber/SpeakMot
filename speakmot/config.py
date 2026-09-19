@@ -26,6 +26,9 @@ class Config:
     voice_commands: bool = True
     translate_to_english: bool = False
     language_hotkey: str = ""  # быстрое переключение языка, пусто — выключено
+    repeat_hotkey: str = ""  # повторная вставка последнего текста
+    streaming: bool = False  # показывать распознанное по ходу речи
+    stats: dict[str, float] = field(default_factory=dict)
     preview_before_paste: bool = False
     profiles: list[dict] = field(default_factory=list)
     silence_stop: float = 0.0  # секунды тишины до автостопа, 0 — выключено

@@ -1,4 +1,3 @@
-import queue
 import threading
 
 import numpy as np
@@ -13,9 +12,10 @@ class Recorder:
     def __init__(self, sample_rate: int = 16000, device: int | None = None):
         self.sample_rate = sample_rate
         self.device = device
-        self._chunks: queue.Queue[np.ndarray] = queue.Queue()
+        self._chunks: list[np.ndarray] = []
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
+        self._chunks_lock = threading.Lock()
         self.level = 0.0
         self.silence_stop = 0.0
         self.silence_reached = False
@@ -29,7 +29,8 @@ class Recorder:
     def _callback(self, indata, frames, time_info, status):
         chunk = indata[:, 0].copy()
         self.level = float(np.abs(chunk).max())
-        self._chunks.put(chunk)
+        with self._chunks_lock:
+            self._chunks.append(chunk)
         self._track_silence(chunk)
 
     def _track_silence(self, chunk: np.ndarray) -> None:
@@ -50,7 +51,8 @@ class Recorder:
         with self._lock:
             if self._stream is not None:
                 return
-            self._chunks = queue.Queue()
+            with self._chunks_lock:
+                self._chunks = []
             self.silence_reached = False
             self._heard_speech = False
             self._silent_samples = 0
@@ -74,10 +76,12 @@ class Recorder:
             self._stream = None
         self.level = 0.0
         self.silence_reached = False
+        return self.snapshot()
 
-        parts = []
-        while not self._chunks.empty():
-            parts.append(self._chunks.get())
+    def snapshot(self) -> np.ndarray:
+        """Копия записанного на текущий момент — запись при этом продолжается."""
+        with self._chunks_lock:
+            parts = list(self._chunks)
         if not parts:
             return np.zeros(0, dtype=np.float32)
         return np.concatenate(parts).astype(np.float32)

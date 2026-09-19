@@ -1,6 +1,7 @@
+import logging
 import sys
 
-from PySide6.QtCore import QObject, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QRectF, Qt, QTimer, QtMsgType, Signal, qInstallMessageHandler
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
@@ -13,12 +14,26 @@ from .main_window import MainWindow, center_on_screen
 from .overlay import RecordingOverlay
 from .preview import PreviewWindow
 
+_QT_LEVELS = {
+    QtMsgType.QtDebugMsg: logging.DEBUG,
+    QtMsgType.QtInfoMsg: logging.INFO,
+    QtMsgType.QtWarningMsg: logging.WARNING,
+    QtMsgType.QtCriticalMsg: logging.ERROR,
+    QtMsgType.QtFatalMsg: logging.CRITICAL,
+}
+
+
+def _route_qt_messages(mode, context, message) -> None:
+    """Предупреждения Qt уходят в stderr, которого в окне без консоли нет."""
+    logging.getLogger("qt").log(_QT_LEVELS.get(mode, logging.INFO), message)
+
 
 class Bridge(QObject):
     """Переносит колбэки движка из фоновых потоков в поток интерфейса."""
 
     state_changed = Signal(str, str)
     result_ready = Signal(str)
+    partial_ready = Signal(str)
 
 
 def build_icon(recording: bool = False) -> QIcon:
@@ -39,6 +54,7 @@ def build_icon(recording: bool = False) -> QIcon:
 
 class SpeakMotApp:
     def __init__(self):
+        qInstallMessageHandler(_route_qt_messages)
         self.qt = QApplication(sys.argv)
         self.qt.setApplicationName("SpeakMotor")
         self.qt.setQuitOnLastWindowClosed(False)
@@ -51,6 +67,7 @@ class SpeakMotApp:
             self.cfg,
             on_state=lambda state, message="": self.bridge.state_changed.emit(state, message),
             on_result=self.bridge.result_ready.emit,
+            on_partial=self.bridge.partial_ready.emit,
         )
 
         self.window = MainWindow(self)
@@ -62,6 +79,7 @@ class SpeakMotApp:
 
         self.bridge.state_changed.connect(self._on_state)
         self.bridge.result_ready.connect(self._on_result)
+        self.bridge.partial_ready.connect(self.overlay.show_partial)
 
         self._build_tray()
 

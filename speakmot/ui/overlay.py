@@ -67,6 +67,11 @@ class RecordingOverlay(QWidget):
         self._reposition()
         self.show()
 
+    def show_partial(self, text: str) -> None:
+        """Текст, распознанный по ходу речи, — он ещё может измениться."""
+        self.title.setText(text[-70:] if len(text) > 70 else text)
+        self.hint.setText("слушаю дальше…")
+
     def show_transcribing(self) -> None:
         self._hide_timer.stop()
         self.title.setText("Распознаю…")

@@ -71,6 +71,10 @@ def selftest(report_path: str) -> int:
         failed = failed or line.startswith("FAIL")
         lines.append(line)
 
+    for line in _check_windows_paths():
+        failed = failed or line.startswith("FAIL")
+        lines.append(line)
+
     report = "\n".join(lines)
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write(report + "\n")
@@ -112,8 +116,63 @@ def _check_transcription() -> str:
     return f"OK    распознавание отработало, символов в ответе: {len(text)}"
 
 
+def _check_windows_paths() -> list[str]:
+    """Проверяет то, что работает только на Windows и только у пользователя.
+
+    Горячие клавиши, буфер обмена и автозапуск живут вне нашего кода, и
+    сломаться могут молча — здесь они хотя бы раз выполняются по-настоящему.
+    """
+    if sys.platform != "win32":
+        return ["SKIP  проверки Windows: выполняются только на Windows"]
+
+    results = []
+
+    try:
+        import keyboard
+
+        handle = keyboard.add_hotkey("ctrl+alt+f24", lambda: None, suppress=False)
+        keyboard.remove_hotkey(handle)
+        results.append("OK    назначение горячей клавиши")
+    except Exception as exc:
+        results.append(f"FAIL  назначение горячей клавиши: {type(exc).__name__}: {exc}")
+
+    try:
+        import pyperclip
+
+        previous = pyperclip.paste()
+        pyperclip.copy("проверка буфера SpeakMotor")
+        restored = pyperclip.paste()
+        pyperclip.copy(previous)
+        if restored == "проверка буфера SpeakMotor":
+            results.append("OK    буфер обмена")
+        else:
+            results.append(f"FAIL  буфер обмена: прочитано {restored!r}")
+    except Exception as exc:
+        results.append(f"FAIL  буфер обмена: {type(exc).__name__}: {exc}")
+
+    try:
+        from speakmot import autostart
+
+        was_enabled = autostart.is_enabled()
+        autostart.set_enabled(True)
+        turned_on = autostart.is_enabled()
+        autostart.set_enabled(was_enabled)
+        if turned_on:
+            results.append("OK    автозапуск через реестр")
+        else:
+            results.append("FAIL  автозапуск: запись не появилась в реестре")
+    except Exception as exc:
+        results.append(f"FAIL  автозапуск: {type(exc).__name__}: {exc}")
+
+    return results
+
+
 if __name__ == "__main__":
     ensure_streams()
+
+    from speakmot import journal
+
+    journal.setup()
 
     if "--selftest" in sys.argv:
         index = sys.argv.index("--selftest")

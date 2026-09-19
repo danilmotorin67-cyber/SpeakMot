@@ -62,3 +62,20 @@ def test_near_silence_is_not_amplified():
 def test_empty_recording_is_returned_as_is():
     empty = np.zeros(0, dtype=np.float32)
     assert normalize(empty).size == 0
+
+
+def test_snapshot_returns_audio_while_recording_continues():
+    """Стриминг читает запись на ходу — забирать данные из буфера нельзя."""
+    recorder = Recorder(sample_rate=16000)
+    chunk = np.full(800, 0.3, dtype=np.float32)
+    recorder._chunks = [chunk, chunk]
+
+    first = recorder.snapshot()
+    second = recorder.snapshot()
+
+    assert first.size == 1600
+    assert second.size == 1600
+
+
+def test_snapshot_of_an_empty_recording():
+    assert Recorder(sample_rate=16000).snapshot().size == 0
