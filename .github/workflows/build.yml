@@ -99,6 +99,26 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # Вариант установщика с уже скачанной моделью small — для сетей,
+      # откуда сервер моделей недоступен.
+      - name: Download bundled model
+        run: python tools/bundle_model.py small bundle/models
+
+      - name: Check the bundled model loads offline
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: >
+          python -c "import numpy as np; from faster_whisper import WhisperModel;
+          m = WhisperModel('small', device='cpu', compute_type='int8',
+          download_root='bundle/models', local_files_only=True);
+          segments, _ = m.transcribe(np.zeros(16000, dtype=np.float32));
+          list(segments); print('модель small грузится без сети')"
+
+      - name: Build installer with the small model
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DBundleModel installer.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       - name: Package portable build
         run: Compress-Archive -Path dist/SpeakMotor/* -DestinationPath SpeakMotor-windows.zip
 
@@ -120,6 +140,8 @@ jobs:
             Локальная диктовка для Windows. Всё распознавание идёт офлайн.
 
             - `SpeakMotor-setup-*.exe` — установщик, права администратора не нужны
+            - `SpeakMotor-setup-*-small.exe` — то же, но модель small уже внутри:
+              ничего не нужно скачивать
             - `SpeakMotor-windows.zip` — портативная версия
 
             При первом запуске откроется вкладка «Модели»: выберите модель

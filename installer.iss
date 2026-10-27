@@ -1,6 +1,6 @@
 ; Установщик SpeakMotor. Собирается через ISCC installer.iss после PyInstaller.
 #define AppName "SpeakMotor"
-#define AppVersion "0.11.3"
+#define AppVersion "0.11.4"
 
 [Setup]
 AppName={#AppName}
@@ -10,7 +10,11 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=installer
+#ifdef BundleModel
+OutputBaseFilename=SpeakMotor-setup-{#AppVersion}-small
+#else
 OutputBaseFilename=SpeakMotor-setup-{#AppVersion}
+#endif
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -27,6 +31,11 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 
 [Files]
 Source: "dist\SpeakMotor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#ifdef BundleModel
+; модель кладётся туда же, куда её скачала бы сама программа;
+; при удалении программы остаётся, как и скачанные вручную
+Source: "bundle\models\*"; DestDir: "{%USERPROFILE}\.speakmot\models"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+#endif
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"
