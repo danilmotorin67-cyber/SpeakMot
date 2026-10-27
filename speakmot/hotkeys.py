@@ -23,6 +23,18 @@ KEY_ALIASES = {
 FORBIDDEN = {"", "alt+f4", "ctrl+alt+delete"}
 
 
+# Боковые кнопки мыши. Назначаются без модификаторов: зажимать Ctrl
+# вместе с кнопкой на мышке неудобно, а случайно её не нажмёшь.
+MOUSE_BUTTONS = {
+    "mouse4": "Мышь: боковая «назад»",
+    "mouse5": "Мышь: боковая «вперёд»",
+}
+
+
+def is_mouse(combo: str) -> bool:
+    return (combo or "").strip().lower() in MOUSE_BUTTONS
+
+
 def normalize_key(name: str) -> str:
     """Приводит название клавиши к виду, понятному библиотеке перехвата."""
     name = (name or "").strip().lower()
@@ -54,4 +66,6 @@ def pretty(combo: str) -> str:
     """Человеческий вид комбинации для показа в интерфейсе."""
     if not combo:
         return tr("не назначена")
+    if is_mouse(combo):
+        return tr(MOUSE_BUTTONS[combo.strip().lower()])
     return " + ".join(part.strip().title() for part in combo.split("+") if part.strip())

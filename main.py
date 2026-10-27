@@ -130,6 +130,61 @@ def _check_transcription() -> str:
     return f"OK    распознавание отработало, символов в ответе: {len(text)}"
 
 
+def _send_side_button(pressed: bool) -> None:
+    """Нажимает боковую кнопку «назад» так же, как это делает настоящая мышь."""
+    import ctypes
+    from ctypes import wintypes
+
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", wintypes.LONG),
+            ("dy", wintypes.LONG),
+            ("mouseData", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", ctypes.c_size_t),
+        ]
+
+    class INPUT(ctypes.Structure):
+        _fields_ = [("type", wintypes.DWORD), ("mi", MOUSEINPUT)]
+
+    xdown, xup, xbutton1 = 0x0080, 0x0100, 0x0001
+    event = INPUT(0, MOUSEINPUT(0, 0, xbutton1, xdown if pressed else xup, 0, 0))
+    sent = ctypes.windll.user32.SendInput(1, ctypes.byref(event), ctypes.sizeof(INPUT))
+    if sent != 1:
+        raise OSError(f"SendInput вернул {sent}")
+
+
+def _check_mouse_hook() -> str:
+    """Ставит хук мыши и жмёт боковую кнопку: обработчик должен сработать.
+
+    Хук целиком на ctypes — ошибка в типах проявилась бы только у
+    пользователя, поэтому проверяем по-настоящему, на собранном exe.
+    """
+    import threading
+
+    from speakmot import mousehook
+
+    pressed, released = threading.Event(), threading.Event()
+    hook = mousehook.MouseHook({"mouse4": (pressed.set, released.set)})
+    try:
+        if not hook.start():
+            return f"FAIL  хук мыши не установился: {hook.error}"
+        try:
+            _send_side_button(True)
+            _send_side_button(False)
+        except OSError as exc:
+            # без интерактивного рабочего стола Windows не принимает ввод
+            return f"SKIP  хук мыши установлен, но нажатие не отправить: {exc}"
+        if not (pressed.wait(5) and released.wait(5)):
+            return "FAIL  хук мыши: нажатие боковой кнопки не дошло до обработчика"
+    except Exception as exc:
+        return f"FAIL  хук мыши: {type(exc).__name__}: {exc}"
+    finally:
+        hook.stop()
+    return "OK    боковая кнопка мыши перехватывается"
+
+
 def _check_windows_paths() -> list[str]:
     """Проверяет то, что работает только на Windows и только у пользователя.
 
@@ -139,7 +194,7 @@ def _check_windows_paths() -> list[str]:
     if sys.platform != "win32":
         return ["SKIP  проверки Windows: выполняются только на Windows"]
 
-    results = []
+    results = [_check_mouse_hook()]
 
     try:
         import keyboard

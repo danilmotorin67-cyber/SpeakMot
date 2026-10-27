@@ -5,7 +5,7 @@ import time
 
 import keyboard
 
-from . import output, profiles, voice_commands, winapi
+from . import hotkeys, mousehook, output, profiles, voice_commands, winapi
 from .audio import Recorder, normalize
 from .config import Config
 from .profiles import Profile
@@ -58,6 +58,7 @@ class Engine:
         self._hotkey_handles: list = []
         self._release_hook = None
         self._cancel_hook = None
+        self._mouse_hook = None
         self._watchdog: threading.Thread | None = None
         self._busy = threading.Lock()
         self._generation = 0
@@ -77,36 +78,42 @@ class Engine:
     def install_hotkey(self) -> None:
         self.remove_hotkey()
         log.info("назначаю горячую клавишу %s (%s)", self.cfg.hotkey, self.cfg.hotkey_mode)
+        hold = self.cfg.hotkey_mode == "hold"
+        main = (
+            self.cfg.hotkey,
+            self.start_recording if hold else self.toggle,
+            self.stop_and_transcribe if hold else None,
+        )
+        extra = [
+            (self.cfg.repeat_hotkey.strip(), self.repeat_last, None),
+            (self.cfg.language_hotkey.strip(), self.switch_language, None),
+        ]
+        mouse_bindings = {}
         try:
-            self._hotkey_handles.append(
-                keyboard.add_hotkey(
-                    self.cfg.hotkey,
-                    self.start_recording if self.cfg.hotkey_mode == "hold" else self.toggle,
-                    suppress=False,
+            for combo, on_press, on_release in [main, *extra]:
+                if not combo:
+                    continue
+                if hotkeys.is_mouse(combo):
+                    mouse_bindings[combo.strip().lower()] = (on_press, on_release)
+                    continue
+                self._hotkey_handles.append(
+                    keyboard.add_hotkey(combo, on_press, suppress=False)
                 )
-            )
-            if self.cfg.hotkey_mode == "hold":
+            if hold and not hotkeys.is_mouse(self.cfg.hotkey):
                 self._release_hook = keyboard.hook(self._on_key_event)
-            if self.cfg.repeat_hotkey.strip():
-                self._hotkey_handles.append(
-                    keyboard.add_hotkey(
-                        self.cfg.repeat_hotkey.strip(),
-                        self.repeat_last,
-                        suppress=False,
-                    )
-                )
-            if self.cfg.language_hotkey.strip():
-                self._hotkey_handles.append(
-                    keyboard.add_hotkey(
-                        self.cfg.language_hotkey.strip(),
-                        self.switch_language,
-                        suppress=False,
-                    )
-                )
         except Exception as exc:
             log.exception("горячая клавиша не назначилась")
             self._set_state(ERROR, f"Не удалось назначить {self.cfg.hotkey}: {exc}")
             return
+
+        if mouse_bindings:
+            self._mouse_hook = mousehook.MouseHook(mouse_bindings)
+            if not self._mouse_hook.start():
+                reason = self._mouse_hook.error or "работает только в Windows"
+                log.error("кнопки мыши не перехвачены: %s", reason)
+                self._mouse_hook = None
+                self._set_state(ERROR, f"Не удалось перехватить кнопку мыши: {reason}")
+                return
         if self.state in (IDLE, ERROR):
             self._set_state(IDLE)
 
@@ -124,6 +131,9 @@ class Engine:
             self.stop_and_transcribe()
 
     def remove_hotkey(self) -> None:
+        if self._mouse_hook is not None:
+            self._mouse_hook.stop()
+            self._mouse_hook = None
         for handle in self._hotkey_handles:
             with contextlib.suppress(Exception):
                 keyboard.remove_hotkey(handle)

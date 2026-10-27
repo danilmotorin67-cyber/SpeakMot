@@ -31,3 +31,14 @@ def test_qt_names_are_translated():
 def test_pretty_reads_naturally():
     assert hotkeys.pretty("ctrl+alt+space") == "Ctrl + Alt + Space"
     assert hotkeys.pretty("") == "не назначена"
+
+
+def test_mouse_buttons_are_recognised():
+    from speakmot import hotkeys
+
+    assert hotkeys.is_mouse("mouse4")
+    assert hotkeys.is_mouse("Mouse5")
+    assert not hotkeys.is_mouse("ctrl+alt+space")
+    assert not hotkeys.is_mouse("")
+    assert "назад" in hotkeys.pretty("mouse4")
+    assert "вперёд" in hotkeys.pretty("mouse5")

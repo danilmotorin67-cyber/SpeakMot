@@ -133,3 +133,65 @@ def test_gpu_without_cuda_libraries_falls_back_to_cpu(monkeypatch):
     assert transcriber.cuda_usable() is False
     device, compute = transcriber.Transcriber(Config())._resolve_device()
     assert (device, compute) == ("cpu", "int8")
+
+
+def test_mouse_hotkey_uses_the_mouse_hook(engine_module, monkeypatch):
+    from speakmot.config import Config
+
+    installed = {}
+
+    class FakeHook:
+        def __init__(self, bindings):
+            installed.update(bindings)
+            self.error = ""
+
+        def start(self):
+            return True
+
+        def stop(self):
+            installed.clear()
+
+    monkeypatch.setattr(engine_module.mousehook, "MouseHook", FakeHook)
+    keyboard_calls = []
+    monkeypatch.setattr(
+        engine_module.keyboard, "add_hotkey", lambda combo, *a, **k: keyboard_calls.append(combo)
+    )
+
+    cfg = Config()
+    cfg.hotkey = "mouse4"
+    cfg.hotkey_mode = "hold"
+    cfg.repeat_hotkey = "ctrl+alt+r"
+    engine = engine_module.Engine(cfg)
+    engine.install_hotkey()
+
+    on_press, on_release = installed["mouse4"]
+    assert on_press == engine.start_recording
+    assert on_release == engine.stop_and_transcribe
+    assert keyboard_calls == ["ctrl+alt+r"]
+    assert engine.state == engine_module.IDLE
+
+    engine.remove_hotkey()
+    assert installed == {}
+
+
+def test_mouse_hook_failure_is_reported(engine_module, monkeypatch):
+    from speakmot.config import Config
+
+    class BrokenHook:
+        def __init__(self, bindings):
+            self.error = "нет доступа"
+
+        def start(self):
+            return False
+
+        def stop(self):
+            pass
+
+    monkeypatch.setattr(engine_module.mousehook, "MouseHook", BrokenHook)
+    states = []
+    cfg = Config()
+    cfg.hotkey = "mouse5"
+    engine = engine_module.Engine(cfg, on_state=lambda s, m: states.append((s, m)))
+    engine.install_hotkey()
+    assert engine.state == engine_module.ERROR
+    assert "нет доступа" in states[-1][1]

@@ -417,7 +417,7 @@ class MainWindow(QWidget):
         self._add_setting(
             hotkey_card,
             tr("Горячая клавиша"),
-            tr("Нажмите поле и задайте сочетание"),
+            tr("Нажмите поле, затем сочетание или боковую кнопку мыши"),
             self.hotkey_edit,
         )
 

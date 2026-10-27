@@ -32,6 +32,10 @@ EN = {
     "Нажмите сочетание…": "Press a shortcut…",
     "Нужен модификатор и клавиша": "A modifier plus a key is required",
     "не назначена": "not set",
+    "Мышь: боковая «назад»": "Mouse: side «back»",
+    "Мышь: боковая «вперёд»": "Mouse: side «forward»",
+    "Нажмите сочетание или боковую кнопку мыши…": "Press a shortcut or a side mouse button…",
+    "Не удалось перехватить кнопку мыши": "Could not capture the mouse button",
     # главная
     "Готов к работе": "Ready",
     "Слушаю…": "Listening…",
@@ -60,6 +64,9 @@ EN = {
     "Управление": "Controls",
     "Горячая клавиша": "Hotkey",
     "Нажмите поле и задайте сочетание": "Click the field and press a shortcut",
+    "Нажмите поле, затем сочетание или боковую кнопку мыши": (
+        "Click the field, then press a shortcut or a side mouse button"
+    ),
     "Смена языка": "Switch language",
     "Переключает русский → английский → автоопределение": (
         "Cycles Russian → English → auto detection"

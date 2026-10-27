@@ -6,6 +6,7 @@ from .. import hotkeys
 from ..i18n import tr
 
 MODIFIER_KEYS = {Qt.Key_Control, Qt.Key_Alt, Qt.Key_Shift, Qt.Key_Meta, Qt.Key_AltGr}
+MOUSE_BUTTONS = {Qt.BackButton: "mouse4", Qt.ForwardButton: "mouse5"}
 
 
 class HotkeyEdit(QPushButton):
@@ -38,7 +39,7 @@ class HotkeyEdit(QPushButton):
 
     def _render(self) -> None:
         if self.isChecked():
-            self.setText(tr("Нажмите сочетание…"))
+            self.setText(tr("Нажмите сочетание или боковую кнопку мыши…"))
         else:
             self.setText(hotkeys.pretty(self._combo))
 
@@ -47,8 +48,11 @@ class HotkeyEdit(QPushButton):
         if checked:
             self.setFocus(Qt.ShortcutFocusReason)
             self.grabKeyboard()
+            # боковую кнопку жмут, не целясь в поле, — ловим мышь целиком
+            self.grabMouse()
         else:
             self.releaseKeyboard()
+            self.releaseMouse()
 
     def keyPressEvent(self, event):
         if not self.isChecked():
@@ -78,6 +82,20 @@ class HotkeyEdit(QPushButton):
             self.setText(tr("Нужен модификатор и клавиша"))
             return
 
+        self._accept(combo)
+
+    def mousePressEvent(self, event):
+        if not self.isChecked():
+            super().mousePressEvent(event)
+            return
+        combo = MOUSE_BUTTONS.get(event.button())
+        if combo is None:
+            # обычный щелчок во время записи сочетания — передумали
+            self.setChecked(False)
+            return
+        self._accept(combo)
+
+    def _accept(self, combo: str) -> None:
         self._combo = combo
         self.setChecked(False)
         self.changed.emit(combo)

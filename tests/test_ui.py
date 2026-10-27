@@ -371,3 +371,28 @@ def test_installer_shortcuts_use_the_exe_icon():
 
     script = pathlib.Path("installer.iss").read_text(encoding="utf-8")
     assert "{app}\\assets" not in script
+
+
+def test_hotkey_field_accepts_a_side_mouse_button(window):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    from speakmot.ui.hotkey_edit import HotkeyEdit
+
+    field = HotkeyEdit("ctrl+alt+space")
+    received = []
+    field.changed.connect(received.append)
+    field.setChecked(True)
+    event = QMouseEvent(
+        QMouseEvent.MouseButtonPress,
+        QPointF(5, 5),
+        QPointF(5, 5),
+        Qt.BackButton,
+        Qt.BackButton,
+        Qt.NoModifier,
+    )
+    field.mousePressEvent(event)
+    assert received == ["mouse4"]
+    assert field.combo() == "mouse4"
+    assert not field.isChecked()
+    assert "назад" in field.text()
