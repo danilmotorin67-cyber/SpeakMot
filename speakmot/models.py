@@ -1,10 +1,17 @@
 import io
+import logging
 import shutil
 import sys
 import threading
 from pathlib import Path
 
 from .config import MODELS_DIR
+
+log = logging.getLogger("speakmot.models")
+
+# Основной сервер и зеркало: huggingface.co бывает недоступен из некоторых
+# сетей, а зеркало отдаёт те же файлы.
+ENDPOINTS = ("https://huggingface.co", "https://hf-mirror.com")
 
 MODEL_REPOS = {
     "tiny": "Systran/faster-whisper-tiny",
@@ -49,7 +56,7 @@ def local_bytes(size: str) -> int:
     return sum(f.stat().st_size for f in directory.rglob("*") if f.is_file())
 
 
-def remote_bytes(size: str) -> int:
+def remote_bytes(size: str, endpoint: str = ENDPOINTS[0]) -> int:
     """Суммарный размер файлов модели на сервере.
 
     Нужен для честного процента; при отсутствии сети берём оценку из таблицы.
@@ -57,7 +64,7 @@ def remote_bytes(size: str) -> int:
     try:
         from huggingface_hub import HfApi
 
-        info = HfApi().model_info(MODEL_REPOS[size], files_metadata=True)
+        info = HfApi(endpoint=endpoint).model_info(MODEL_REPOS[size], files_metadata=True)
         total = sum(f.size or 0 for f in info.siblings)
         if total > 0:
             return total
@@ -91,14 +98,42 @@ def _with_streams(function):
     return wrapper
 
 
+def describe_error(exc: BaseException) -> str:
+    """Текст ошибки для человека. У части исключений str() пустой."""
+    text = str(exc).strip()
+    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
+
+
 def download(size: str, on_progress) -> None:
     """Скачивает модель, сообщая прогресс от 0 до 100.
+
+    Сначала с основного сервера, при неудаче — с зеркала. Успехом считается
+    только модель, которая действительно появилась на диске.
+    """
+    errors = []
+    for endpoint in ENDPOINTS:
+        try:
+            _download_from(size, endpoint, on_progress)
+        except Exception as exc:
+            log.warning("загрузка %s с %s не удалась: %s", size, endpoint, describe_error(exc))
+            errors.append(f"{endpoint}: {describe_error(exc)}")
+            continue
+        if is_installed(size):
+            log.info("модель %s скачана с %s", size, endpoint)
+            on_progress(100)
+            return
+        errors.append(f"{endpoint}: файлы модели не появились на диске")
+    raise RuntimeError("; ".join(errors))
+
+
+def _download_from(size: str, endpoint: str, on_progress) -> None:
+    """Одна попытка загрузки с указанного сервера.
 
     huggingface_hub не отдаёт прогресс в виде колбэка, поэтому загрузка идёт
     в отдельном потоке, а процент считается по размеру папки на диске.
     """
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    total = remote_bytes(size)
+    total = remote_bytes(size, endpoint)
     start = local_bytes(size)
     finished = threading.Event()
     error: list[Exception] = []
@@ -118,6 +153,8 @@ def download(size: str, on_progress) -> None:
                 MODEL_REPOS[size],
                 cache_dir=str(MODELS_DIR),
                 allow_patterns=["*.bin", "*.json", "*.txt", "*.model"],
+                endpoint=endpoint,
+                etag_timeout=20,
             )
         except Exception as exc:
             error.append(exc)
@@ -135,4 +172,3 @@ def download(size: str, on_progress) -> None:
     thread.join()
     if error:
         raise error[0]
-    on_progress(100)

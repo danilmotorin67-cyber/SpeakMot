@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from PySide6.QtCore import Qt, Signal
@@ -30,6 +31,9 @@ def human_size(size_bytes: int) -> str:
     if gigabytes >= 1:
         return f"{gigabytes:.1f}{tr(' ГБ')}"
     return f"{size_bytes / 1_000_000:.0f}{tr(' МБ')}"
+
+
+log = logging.getLogger("speakmot.models_page")
 
 
 class ModelCard(Card):
@@ -135,7 +139,8 @@ class ModelCard(Card):
             try:
                 models.download(self.size, self.progress_changed.emit)
             except Exception as exc:
-                self.finished.emit(str(exc))
+                log.exception("не удалось скачать модель %s", self.size)
+                self.finished.emit(models.describe_error(exc))
                 return
             self.finished.emit("")
 
@@ -147,6 +152,8 @@ class ModelCard(Card):
     def _on_finished(self, error: str) -> None:
         self._busy = False
         self.progress.hide()
+        if not error and not models.is_installed(self.size):
+            error = tr("файлы модели не появились на диске")
         if error:
             self.page.report(tr("Не удалось скачать ") + f"{self.size}: {error}")
         else:

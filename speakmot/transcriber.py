@@ -1,3 +1,6 @@
+import ctypes
+import logging
+import sys
 import threading
 
 import numpy as np
@@ -5,9 +8,36 @@ import numpy as np
 from . import models
 from .config import MODELS_DIR, Config
 
+log = logging.getLogger("speakmot.transcriber")
+
+# Библиотеки NVIDIA, без которых ctranslate2 4.x не может считать на видеокарте.
+# В сборку они не входят: если их нет в системе, модель загружается, а первое
+# же распознавание намертво виснет.
+CUDA_LIBRARIES = ("cublas64_12.dll", "cudnn_ops64_9.dll")
+
 
 class ModelNotInstalled(Exception):
     pass
+
+
+def cuda_usable() -> bool:
+    """Видеокарта есть и библиотеки CUDA действительно загружаются."""
+    try:
+        import ctranslate2
+
+        if ctranslate2.get_cuda_device_count() <= 0:
+            return False
+    except Exception:
+        return False
+    if sys.platform != "win32":
+        return True
+    for name in CUDA_LIBRARIES:
+        try:
+            ctypes.WinDLL(name)
+        except OSError:
+            log.info("видеокарта есть, но нет %s — считаю на процессоре", name)
+            return False
+    return True
 
 
 class Transcriber:
@@ -25,13 +55,8 @@ class Transcriber:
 
     def _resolve_device(self) -> tuple[str, str]:
         device = self.cfg.device
-        if device == "auto":
-            try:
-                import ctranslate2
-
-                device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-            except Exception:
-                device = "cpu"
+        if device == "auto" or (device == "cuda" and not cuda_usable()):
+            device = "cuda" if cuda_usable() else "cpu"
         compute_type = self.cfg.compute_type
         if compute_type == "auto":
             compute_type = "float16" if device == "cuda" else "int8"
@@ -50,6 +75,12 @@ class Transcriber:
             device, compute_type = self._resolve_device()
             progress(f"Загрузка модели {self.cfg.model_size} в память…")
             self._model = self._build(WhisperModel, device, compute_type, progress)
+            log.info(
+                "модель %s загружена: %s, %s",
+                self.cfg.model_size,
+                self.device_in_use,
+                compute_type,
+            )
 
     def _build(self, WhisperModel, device: str, compute_type: str, progress):
         """Создаёт модель, откатываясь на CPU, если видеокарта не готова.

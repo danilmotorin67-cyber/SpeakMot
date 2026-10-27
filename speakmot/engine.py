@@ -20,6 +20,10 @@ ERROR = "error"
 
 log = logging.getLogger("speakmot.engine")
 
+# Сколько ждать распознавания, прежде чем признать его зависшим.
+TRANSCRIBE_TIMEOUT_BASE = 60.0
+TRANSCRIBE_TIMEOUT_PER_SECOND = 3.0
+
 MODIFIERS = {"ctrl", "alt", "shift", "windows", "win", "cmd"}
 LANGUAGE_NAMES = {"ru": "русский", "en": "английский", "auto": "автоопределение"}
 
@@ -56,6 +60,9 @@ class Engine:
         self._cancel_hook = None
         self._watchdog: threading.Thread | None = None
         self._busy = threading.Lock()
+        self._generation = 0
+        self._finished_generation = 0
+        self._finished = threading.Event()
         self.target_window = 0
         self.resolved = None
         self.last_text = ""
@@ -264,7 +271,42 @@ class Engine:
         if self.cfg.sound_feedback:
             output.beep(False)
         self._set_state(TRANSCRIBING)
-        threading.Thread(target=self._transcribe_worker, args=(audio,), daemon=True).start()
+        self._generation += 1
+        generation = self._generation
+        self._finished.clear()
+        threading.Thread(
+            target=self._transcribe_worker, args=(audio, generation), daemon=True
+        ).start()
+        self._watch_transcription(generation, len(audio) / self.cfg.sample_rate)
+
+    def _watch_transcription(self, generation: int, seconds: float) -> None:
+        """Не даёт распознаванию висеть вечно.
+
+        Зависший вызов внутри библиотеки прервать нельзя, поэтому его просто
+        бросаем: следующая запись пойдёт на новом экземпляре модели и уже на
+        процессоре, а запоздавший результат старого будет отброшен.
+        """
+        limit = TRANSCRIBE_TIMEOUT_BASE + TRANSCRIBE_TIMEOUT_PER_SECOND * seconds
+
+        def watch():
+            if self._finished.wait(limit) and self._finished_generation >= generation:
+                return
+            if self._generation != generation or self.state != TRANSCRIBING:
+                return
+            log.error(
+                "распознавание зависло: %.0f с без ответа, устройство %s",
+                limit,
+                self.transcriber.device_in_use,
+            )
+            self._generation += 1
+            if self.transcriber.device_in_use != "cpu":
+                self.cfg.device = "cpu"
+                self.cfg.save()
+            self.transcriber = Transcriber(self.cfg)
+            self._busy = threading.Lock()
+            self._set_state(ERROR, "Распознавание зависло — попробуйте ещё раз")
+
+        threading.Thread(target=watch, daemon=True).start()
 
     def cancel(self) -> None:
         """Выбрасывает начатую запись, ничего не распознавая."""
@@ -274,7 +316,14 @@ class Engine:
         self._remove_cancel_hotkey()
         self._set_state(IDLE, "Запись отменена")
 
-    def _transcribe_worker(self, audio) -> None:
+    def _transcribe_worker(self, audio, generation: int = 0) -> None:
+        try:
+            self._transcribe(audio, generation)
+        finally:
+            self._finished_generation = max(self._finished_generation, generation)
+            self._finished.set()
+
+    def _transcribe(self, audio, generation: int) -> None:
         with self._busy:
             settings = self.resolved or profiles.resolve(self.cfg, [], "", "")
             try:
@@ -285,7 +334,12 @@ class Engine:
                 )
             except Exception:
                 log.exception("распознавание не удалось")
-                self._set_state(ERROR, "Ошибка распознавания")
+                if not generation or generation == self._generation:
+                    self._set_state(ERROR, "Ошибка распознавания")
+                return
+
+            if generation and generation != self._generation:
+                log.warning("запоздавший результат распознавания отброшен")
                 return
 
             text = apply_replacements(text, self.cfg.replacements)
