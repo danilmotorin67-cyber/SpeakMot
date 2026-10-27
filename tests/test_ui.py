@@ -359,3 +359,15 @@ def test_english_voice_commands():
 
     assert apply_commands("hello comma world full stop") == "Hello, world."
     assert apply_commands("привет запятая мир точка") == "Привет, мир."
+
+
+def test_installer_shortcuts_use_the_exe_icon():
+    """PyInstaller 6 кладёт данные в _internal, а не рядом с exe.
+
+    Ярлык, указывающий на {app}\\assets\\icon.ico, смотрел в пустоту и
+    показывал белый лист. Значок и так вшит в сам exe.
+    """
+    import pathlib
+
+    script = pathlib.Path("installer.iss").read_text(encoding="utf-8")
+    assert "{app}\\assets" not in script

@@ -1,6 +1,6 @@
 ; Установщик SpeakMotor. Собирается через ISCC installer.iss после PyInstaller.
 #define AppName "SpeakMotor"
-#define AppVersion "0.11.1"
+#define AppVersion "0.11.2"
 
 [Setup]
 AppName={#AppName}
@@ -29,8 +29,8 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Source: "dist\SpeakMotor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"; IconFilename: "{app}\assets\icon.ico"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"; IconFilename: "{app}\assets\icon.ico"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\SpeakMotor.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\SpeakMotor.exe"; Description: "Запустить {#AppName}"; Flags: nowait postinstall skipifsilent
